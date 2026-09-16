@@ -7,7 +7,8 @@
         Title="RemoteLAN — Remote Desktop Session" Height="760" Width="1100"
         WindowStartupLocation="CenterScreen"
         Background="#0F172A" Foreground="#F8FAFC"
-        FontFamily="Segoe UI">
+        FontFamily="Segoe UI"
+        Icon="/icon.ico">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -26,6 +27,8 @@
 
                 <!-- Remote Host Info -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="/icon.png" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
                     <Border Width="10" Height="10" CornerRadius="5" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="RemoteHostTitleText" Text="Connected to Remote PC" FontSize="14" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
                     <Border Background="#E0F2FE" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">

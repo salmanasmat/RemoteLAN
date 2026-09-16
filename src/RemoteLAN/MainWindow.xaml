@@ -16,6 +16,7 @@
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
         RenderOptions.ClearTypeHint="Enabled"
+        Icon="/icon.ico"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <!-- Primary Action Button Style -->
@@ -258,11 +259,8 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Brand Icon -->
-                        <Border Grid.Column="0" Width="36" Height="36" CornerRadius="9" Background="#2563EB" Margin="0,0,10,0" VerticalAlignment="Center"
-                                SnapsToDevicePixels="True">
-                            <Path Data="M 2,3 L 22,3 C 22.6,3 23,3.4 23,4 L 23,17 C 23,17.6 22.6,18 22,18 L 15,18 L 16,21 L 18,21 C 18.6,21 19,21.4 19,22 C 19,22.6 18.6,23 18,23 L 6,23 C 5.4,23 5,22.6 5,22 C 5,21.4 5.4,21 6,21 L 8,21 L 9,18 L 2,18 C 1.4,18 1,17.6 1,17 L 1,4 C 1,3.4 1.4,3 2,3 Z M 3,5 L 3,16 L 21,16 L 21,5 Z"
-                                  Fill="#FFFFFF" Stretch="Uniform" Width="18" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center" SnapsToDevicePixels="True"/>
-                        </Border>
+                        <Image Grid.Column="0" Source="/icon.png" Width="36" Height="36" Margin="0,0,10,0" VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
 
                         <!-- Brand Name & Version -->
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">

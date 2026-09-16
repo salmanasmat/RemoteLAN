@@ -16,6 +16,7 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
 - **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
+- **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, and in-app header branding.
 - **PIN Handshake Security & Saved Passwords**: Lightweight 6-digit PIN authentication with optional saved credentials ("Remember password for this device") for 1-click instant connection, plus reachability verification and persistent host PIN across app restarts.
 - **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.3.0`).
 
