@@ -18,6 +18,8 @@ public class DiscoveryTests
         Assert.Equal(9191, agent.Port);
         Assert.Equal("0.2.0", agent.Version);
         Assert.Equal("WORKSTATION-01 (192.168.1.100:9191)", agent.DisplayText);
+        Assert.StartsWith("#", agent.HeaderBackgroundBrush);
+        Assert.Equal("#22C55E", agent.StatusDotBrush);
     }
 
     [Theory]

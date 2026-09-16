@@ -43,6 +43,15 @@ public partial class SessionWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             ScreenViewport.Source = image;
+
+            int frameWidth = image.PixelWidth;
+            int frameHeight = image.PixelHeight;
+            if (frameWidth > 0 && frameHeight > 0 &&
+                (frameWidth != _client.RemoteScreenWidth || frameHeight != _client.RemoteScreenHeight))
+            {
+                _client.UpdateRemoteResolution(frameWidth, frameHeight);
+                ResolutionTextBlock.Text = $"{frameWidth}x{frameHeight}";
+            }
         });
     }
 

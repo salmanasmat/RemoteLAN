@@ -8,6 +8,7 @@ using RemoteLAN.Input;
 using RemoteLAN.Security;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
+using RemoteLAN.Power;
 
 namespace RemoteLAN.Network;
 
@@ -38,6 +39,10 @@ public sealed class AgentServer : IDisposable
     public event Action? ClientDisconnected;
     public event Action<double>? FpsUpdated;
 
+    public PinManager PinManager => _pinManager;
+
+    private bool _unattendedKeepAwakeAcquired;
+
     public AgentServer(int port = ProtocolConstants.DefaultPort, int jpegQuality = 70, string? initialPin = null, int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort, bool unattendedAccessEnabled = false, string? unattendedPassword = null)
     {
         _port = port;
@@ -47,9 +52,27 @@ public sealed class AgentServer : IDisposable
         _inputInjector = new InputInjector();
         _writer = new NetworkFrameWriter();
         _discoveryResponder = new AgentDiscoveryResponder(_port, discoveryPort);
+
+        _pinManager.UnattendedAccessChanged += UpdateUnattendedPowerState;
+        if (unattendedAccessEnabled)
+        {
+            UpdateUnattendedPowerState(true, unattendedPassword);
+        }
     }
 
-    public PinManager PinManager => _pinManager;
+    private void UpdateUnattendedPowerState(bool enabled, string? _)
+    {
+        if (enabled && !_unattendedKeepAwakeAcquired)
+        {
+            _unattendedKeepAwakeAcquired = true;
+            SystemPowerManager.AcquireKeepAwake();
+        }
+        else if (!enabled && _unattendedKeepAwakeAcquired)
+        {
+            _unattendedKeepAwakeAcquired = false;
+            SystemPowerManager.ReleaseKeepAwake();
+        }
+    }
 
     public void Start()
     {
@@ -189,6 +212,8 @@ public sealed class AgentServer : IDisposable
 
             StatusChanged?.Invoke($"Connected to {endpoint}");
             ClientConnected?.Invoke(endpoint);
+            SystemPowerManager.AcquireKeepAwake();
+            SystemPowerManager.WakeDisplay();
 
             // Run Video Streaming and Input Receiving concurrently
             var streamTask = Task.Run(() => StreamScreenLoopAsync(networkStream, sessionCts), ct);
@@ -207,6 +232,8 @@ public sealed class AgentServer : IDisposable
         }
         finally
         {
+            SystemPowerManager.ReleaseKeepAwake();
+
             lock (_clientLock)
             {
                 if (ReferenceEquals(_currentClient, client))
@@ -333,6 +360,12 @@ public sealed class AgentServer : IDisposable
     public void Dispose()
     {
         Stop();
+        if (_unattendedKeepAwakeAcquired)
+        {
+            _unattendedKeepAwakeAcquired = false;
+            SystemPowerManager.ReleaseKeepAwake();
+        }
+        _pinManager.UnattendedAccessChanged -= UpdateUnattendedPowerState;
         _discoveryResponder.Dispose();
         _capturer.Dispose();
     }

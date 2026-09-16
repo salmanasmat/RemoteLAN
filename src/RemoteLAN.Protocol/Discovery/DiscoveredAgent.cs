@@ -9,6 +9,29 @@ public sealed record DiscoveredAgent
 
     public string DisplayText => $"{MachineName} ({IpAddress}:{Port})";
 
+    public string HeaderBackgroundBrush
+    {
+        get
+        {
+            // Deterministic pastel palette matching AnyDesk cards.png
+            string[] palette = new[]
+            {
+                "#8497A0", // Slate teal (from cards.png left card)
+                "#958CDD", // Soft periwinkle (from cards.png right card)
+                "#7E97A6", // Steel blue
+                "#8A7EBE", // Soft indigo
+                "#6E929E", // Muted ocean
+                "#8FA08B", // Sage green
+                "#A0897B", // Warm clay
+                "#9C7E92"  // Dusty mauve
+            };
+            int hash = Math.Abs((MachineName + IpAddress).GetHashCode());
+            return palette[hash % palette.Length];
+        }
+    }
+
+    public string StatusDotBrush => "#22C55E"; // Active online green
+
     public override string ToString() => DisplayText;
 
     public static bool TryParse(string rawMessage, string senderIp, out DiscoveredAgent? agent)

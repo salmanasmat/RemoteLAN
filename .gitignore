@@ -42,4 +42,6 @@ $RECYCLE.BIN/
 !**/packages/build/
 project.lock.json
 project.assets.json
-Screenshot (61).png
+Screenshot*.png
+Screenshot (*).png
+*.png

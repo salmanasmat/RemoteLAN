@@ -63,7 +63,7 @@
                    MouseDown="ScreenViewport_MouseDown"
                    MouseUp="ScreenViewport_MouseUp"
                    MouseWheel="ScreenViewport_MouseWheel"
-                   Cursor="Cross"/>
+                   Cursor="Arrow"/>
         </Border>
 
         <!-- Session Status Bar -->

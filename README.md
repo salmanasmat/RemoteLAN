@@ -16,7 +16,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Mode**: Configure a permanent custom password for unattended access without requiring on-screen confirmation.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
-- **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
+- **Fast Screen Streaming & Lock Screen Resilience**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback. Gracefully handles Windows lock screen transitions (`Winlogon` isolation) with informative status overlays, keep-awake power management (`SetThreadExecutionState`), and instantaneous DXGI auto-recovery upon desktop unlock.
+- **Natural Mouse Pointer & Dynamic Resolution**: Standard mouse arrow pointer in the remote desktop viewport (eliminating awkward `+` crosshair cursors), with live dynamic resolution adaptation and normalized coordinate translation across display mode changes.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
 - **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
@@ -33,7 +34,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (35 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, and lock recovery test suite (41 tests)
 ```
 
 ### Network Protocols

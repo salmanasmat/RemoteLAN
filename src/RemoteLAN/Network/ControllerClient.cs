@@ -29,6 +29,17 @@ public sealed class ControllerClient : IDisposable
     public event Action<byte[]>? FrameReceived;
     public event Action<int, int>? ScreenResolutionReceived;
 
+    public void UpdateRemoteResolution(int width, int height)
+    {
+        if (width <= 0 || height <= 0) return;
+        if (RemoteScreenWidth != width || RemoteScreenHeight != height)
+        {
+            RemoteScreenWidth = width;
+            RemoteScreenHeight = height;
+            ScreenResolutionReceived?.Invoke(width, height);
+        }
+    }
+
     public async Task ConnectAsync(string host, int port, string pin, CancellationToken externalCt = default)
     {
         Disconnect();

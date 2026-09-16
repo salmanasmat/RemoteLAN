@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -14,39 +15,55 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
     private IDXGIOutputDuplication? _duplication;
     private ID3D11Texture2D? _stagingTexture;
     private Bitmap? _outputBitmap;
+    private Bitmap? _placeholderBitmap;
+    private Graphics? _placeholderGraphics;
     private int _width;
     private int _height;
+    private readonly Stopwatch _reinitThrottle = Stopwatch.StartNew();
 
-    public int Width => _width;
-    public int Height => _height;
+    public int Width => _width > 0 ? _width : 1920;
+    public int Height => _height > 0 ? _height : 1080;
     public string EngineName => "DXGI Desktop Duplication";
+    public bool IsD3D11Supported { get; private set; }
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    private const int SM_CXSCREEN = 0;
+    private const int SM_CYSCREEN = 1;
 
     public bool Initialize()
     {
-        Dispose();
+        DisposeDuplication();
 
         try
         {
-            var creationFlags = DeviceCreationFlags.BgraSupport;
-            var featureLevels = new[]
+            if (_device == null || _context == null)
             {
-                FeatureLevel.Level_11_1,
-                FeatureLevel.Level_11_0,
-                FeatureLevel.Level_10_1,
-                FeatureLevel.Level_10_0
-            };
+                var creationFlags = DeviceCreationFlags.BgraSupport;
+                var featureLevels = new[]
+                {
+                    FeatureLevel.Level_11_1,
+                    FeatureLevel.Level_11_0,
+                    FeatureLevel.Level_10_1,
+                    FeatureLevel.Level_10_0
+                };
 
-            var d3dResult = D3D11.D3D11CreateDevice(
-                null,
-                DriverType.Hardware,
-                creationFlags,
-                featureLevels,
-                out _device,
-                out _context);
+                var d3dResult = D3D11.D3D11CreateDevice(
+                    null,
+                    DriverType.Hardware,
+                    creationFlags,
+                    featureLevels,
+                    out _device,
+                    out _context);
 
-            if (!d3dResult.Success || _device == null || _context == null)
-            {
-                return false;
+                if (!d3dResult.Success || _device == null || _context == null)
+                {
+                    IsD3D11Supported = false;
+                    return false;
+                }
+
+                IsD3D11Supported = true;
             }
 
             using var dxgiDevice = _device.QueryInterface<IDXGIDevice>();
@@ -72,6 +89,12 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
                     _width = (int)desc.ModeDescription.Width;
                     _height = (int)desc.ModeDescription.Height;
 
+                    if (_width <= 0 || _height <= 0)
+                    {
+                        _width = GetSystemMetrics(SM_CXSCREEN);
+                        _height = GetSystemMetrics(SM_CYSCREEN);
+                    }
+
                     var stagingDesc = new Texture2DDescription
                     {
                         Width = (uint)_width,
@@ -95,7 +118,7 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
         }
         catch
         {
-            Dispose();
+            DisposeDuplication();
             return false;
         }
     }
@@ -104,7 +127,26 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
     {
         if (_duplication == null || _device == null || _context == null || _stagingTexture == null || _outputBitmap == null)
         {
-            if (!Initialize()) return null;
+            if (_reinitThrottle.ElapsedMilliseconds >= 500)
+            {
+                _reinitThrottle.Restart();
+                if (Initialize())
+                {
+                    // Duplication restored!
+                }
+            }
+
+            if (_duplication == null)
+            {
+                int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
+                int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
+                return PlaceholderFrameHelper.RenderLockPlaceholder(
+                    ref _placeholderBitmap,
+                    ref _placeholderGraphics,
+                    curW,
+                    curH,
+                    EngineName);
+            }
         }
 
         try
@@ -122,12 +164,18 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
                     return _outputBitmap;
                 }
 
-                // Access lost or display mode change: re-initialize
-                if (Initialize())
-                {
-                    return _outputBitmap;
-                }
-                return null;
+                // Access lost or display mode change (e.g. desktop locked)
+                DisposeDuplication();
+                _reinitThrottle.Restart();
+
+                int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
+                int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
+                return PlaceholderFrameHelper.RenderLockPlaceholder(
+                    ref _placeholderBitmap,
+                    ref _placeholderGraphics,
+                    curW,
+                    curH,
+                    EngineName);
             }
 
             using (desktopResource)
@@ -180,25 +228,44 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
         }
         catch
         {
-            return null;
+            DisposeDuplication();
+            int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
+            int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
+            return PlaceholderFrameHelper.RenderLockPlaceholder(
+                ref _placeholderBitmap,
+                ref _placeholderGraphics,
+                curW,
+                curH,
+                EngineName);
         }
+    }
+
+    private void DisposeDuplication()
+    {
+        try { _outputBitmap?.Dispose(); } catch { }
+        _outputBitmap = null;
+
+        try { _stagingTexture?.Dispose(); } catch { }
+        _stagingTexture = null;
+
+        try { _duplication?.Dispose(); } catch { }
+        _duplication = null;
     }
 
     public void Dispose()
     {
-        _outputBitmap?.Dispose();
-        _outputBitmap = null;
+        DisposeDuplication();
 
-        _stagingTexture?.Dispose();
-        _stagingTexture = null;
+        try { _placeholderGraphics?.Dispose(); } catch { }
+        _placeholderGraphics = null;
 
-        _duplication?.Dispose();
-        _duplication = null;
+        try { _placeholderBitmap?.Dispose(); } catch { }
+        _placeholderBitmap = null;
 
-        _context?.Dispose();
+        try { _context?.Dispose(); } catch { }
         _context = null;
 
-        _device?.Dispose();
+        try { _device?.Dispose(); } catch { }
         _device = null;
     }
 }

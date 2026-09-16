@@ -529,6 +529,46 @@ public partial class MainWindow : Window
         }
     }
 
+    private void CardKebab_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is Button btn && btn.ContextMenu != null)
+        {
+            btn.ContextMenu.PlacementTarget = btn;
+            btn.ContextMenu.IsOpen = true;
+        }
+    }
+
+    private async void CardMenuConnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            await HandleAgentCardClickAsync(agent);
+        }
+    }
+
+    private void CardMenuCopyIp_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            try
+            {
+                Clipboard.SetText(agent.IpAddress);
+                SetStatus($"Copied IP ({agent.IpAddress}) to clipboard", Color.FromRgb(16, 185, 129));
+            }
+            catch { }
+        }
+    }
+
+    private void CardMenuForgetPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            _settingsManager.RemovePassword(agent.MachineName, agent.IpAddress);
+            SetStatus($"Removed saved password for {agent.MachineName}", Color.FromRgb(100, 116, 139));
+        }
+    }
+
     private async Task HandleAgentCardClickAsync(DiscoveredAgent agent)
     {
         // Check if we already have a saved password for this device
