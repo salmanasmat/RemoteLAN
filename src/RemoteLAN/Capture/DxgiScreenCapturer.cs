@@ -138,14 +138,7 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
 
             if (_duplication == null)
             {
-                int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
-                int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
-                return PlaceholderFrameHelper.RenderLockPlaceholder(
-                    ref _placeholderBitmap,
-                    ref _placeholderGraphics,
-                    curW,
-                    curH,
-                    EngineName);
+                return null;
             }
         }
 
@@ -167,15 +160,7 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
                 // Access lost or display mode change (e.g. desktop locked)
                 DisposeDuplication();
                 _reinitThrottle.Restart();
-
-                int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
-                int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
-                return PlaceholderFrameHelper.RenderLockPlaceholder(
-                    ref _placeholderBitmap,
-                    ref _placeholderGraphics,
-                    curW,
-                    curH,
-                    EngineName);
+                return null;
             }
 
             using (desktopResource)

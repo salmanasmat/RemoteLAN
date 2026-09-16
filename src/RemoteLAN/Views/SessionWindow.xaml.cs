@@ -211,6 +211,23 @@ public partial class SessionWindow : Window
         }
     }
 
+    private async void SendCadBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        SendCadBtn.IsEnabled = false;
+        try
+        {
+            await _client.SendCtrlAltDelAsync();
+            SessionStatusText.Text = "Sent Ctrl+Alt+Del / Wake command to remote PC";
+        }
+        finally
+        {
+            await Task.Delay(500);
+            SendCadBtn.IsEnabled = true;
+        }
+    }
+
     private void DisconnectBtn_Click(object sender, RoutedEventArgs e)
     {
         _isUserClosing = true;

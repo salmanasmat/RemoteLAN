@@ -15,5 +15,9 @@ public enum MessageType : byte
     MouseMove = 0x20,
     MouseButton = 0x21,
     MouseWheel = 0x22,
-    KeyboardKey = 0x30
+    KeyboardKey = 0x30,
+
+    // Lock Screen & System Control
+    SendCtrlAltDel = 0x35,
+    PowerAction = 0x36
 }

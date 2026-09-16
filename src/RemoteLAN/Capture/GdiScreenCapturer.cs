@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using RemoteLAN.Security;
 
 namespace RemoteLAN.Capture;
 
@@ -23,6 +24,8 @@ public sealed class GdiScreenCapturer : IScreenCapturer
     private const int SM_CXSCREEN = 0;
     private const int SM_CYSCREEN = 1;
 
+    private string? _lastDesktopName;
+
     public bool Initialize()
     {
         try
@@ -36,8 +39,8 @@ public sealed class GdiScreenCapturer : IScreenCapturer
                 _height = 1080;
             }
 
-            _screenBitmap?.Dispose();
             _screenGraphics?.Dispose();
+            _screenBitmap?.Dispose();
 
             _screenBitmap = new Bitmap(_width, _height, PixelFormat.Format32bppRgb);
             _screenGraphics = Graphics.FromImage(_screenBitmap);
@@ -52,6 +55,15 @@ public sealed class GdiScreenCapturer : IScreenCapturer
 
     public Bitmap? CaptureFrame()
     {
+        // 1. Ensure thread is attached to the currently active input desktop (Default vs Winlogon)
+        DesktopManager.EnsureThreadOnInputDesktop(out string currentDesktop);
+        if (_lastDesktopName != null && !string.Equals(_lastDesktopName, currentDesktop, StringComparison.OrdinalIgnoreCase))
+        {
+            // Desktop switched! Invalidate screen graphics to re-bind to the new desktop
+            Initialize();
+        }
+        _lastDesktopName = currentDesktop;
+
         int curWidth = GetSystemMetrics(SM_CXSCREEN);
         int curHeight = GetSystemMetrics(SM_CYSCREEN);
         if (_screenBitmap == null || _screenGraphics == null || (curWidth > 0 && curHeight > 0 && (curWidth != _width || curHeight != _height)))
@@ -69,7 +81,17 @@ public sealed class GdiScreenCapturer : IScreenCapturer
         }
         catch
         {
-            // Desktop session locked or non-interactive
+            // Desktop session locked or non-interactive; try re-init once
+            try
+            {
+                if (Initialize())
+                {
+                    _screenGraphics!.CopyFromScreen(0, 0, 0, 0, new Size(_width, _height), CopyPixelOperation.SourceCopy);
+                    return _screenBitmap;
+                }
+            }
+            catch { }
+
             return RenderPlaceholder();
         }
     }
@@ -78,12 +100,17 @@ public sealed class GdiScreenCapturer : IScreenCapturer
     {
         int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
         int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
+        string? reason = !DesktopManager.IsAdministrator
+            ? "Run RemoteLAN as Administrator to view and unlock the Windows sign-in screen."
+            : null;
+
         return PlaceholderFrameHelper.RenderLockPlaceholder(
             ref _placeholderBitmap,
             ref _placeholderGraphics,
             curW,
             curH,
-            EngineName);
+            EngineName,
+            reason);
     }
 
     public void Dispose()

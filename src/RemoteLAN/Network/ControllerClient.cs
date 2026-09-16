@@ -201,6 +201,30 @@ public sealed class ControllerClient : IDisposable
         catch { }
     }
 
+    public async ValueTask SendCtrlAltDelAsync()
+    {
+        if (State != ControllerState.Connected || _networkStream == null) return;
+
+        try
+        {
+            var msg = new SendCtrlAltDelMessage();
+            await _writer.WriteFrameAsync(_networkStream, MessageType.SendCtrlAltDel, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
+    public async ValueTask SendPowerActionAsync(PowerActionType action)
+    {
+        if (State != ControllerState.Connected || _networkStream == null) return;
+
+        try
+        {
+            var msg = new PowerActionMessage { Action = action };
+            await _writer.WriteFrameAsync(_networkStream, MessageType.PowerAction, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
     public void Disconnect(string reason = "Disconnected")
     {
         _sessionCts?.Cancel();

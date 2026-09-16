@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.6.0"
 #define MyAppPublisher "RemoteLAN Team"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -23,7 +23,7 @@ SetupIconFile=..\src\RemoteLAN\icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 CloseApplications=force
 CloseApplicationsFilter=RemoteLAN.exe
@@ -100,6 +100,12 @@ begin
   end
   else if CurStep = ssPostInstall then
   begin
+    // If autostart task was chosen, create elevated Task Scheduler job for lock screen access
+    if WizardIsTaskSelected('autostart') then
+    begin
+      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR """' + ExpandConstant('{app}\{#MyAppExeName}') + '"" --background" /SC ONLOGON /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+
     // Start automatically in the background without displaying the main application window
     Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--background', '', SW_HIDE, ewNoWait, ResultCode);
   end;
@@ -113,6 +119,7 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('schtasks.exe', '/Delete /F /TN "RemoteLAN_Autostart"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Sleep(1000);
   end;
 end;

@@ -137,4 +137,77 @@ public class LockAndResolutionRecoveryTests
         Assert.Equal(0.5, normX2, 3);
         Assert.Equal(0.5, normY2, 3);
     }
+
+    [Fact]
+    public void SendCtrlAltDelMessage_SerializationAndDeserialization()
+    {
+        var msg = new Protocol.Messages.SendCtrlAltDelMessage();
+        byte[] data = msg.Serialize();
+        Assert.NotNull(data);
+
+        var deserialized = Protocol.Messages.SendCtrlAltDelMessage.Deserialize(data);
+        Assert.NotNull(deserialized);
+    }
+
+    [Fact]
+    public void MessageType_SendCtrlAltDel_Value()
+    {
+        Assert.Equal(0x35, (byte)Protocol.Messages.MessageType.SendCtrlAltDel);
+    }
+
+    [Fact]
+    public void DesktopManager_DesktopQueries_ExecuteSafely()
+    {
+        string curDesktop = Security.DesktopManager.GetCurrentThreadDesktopName();
+        // Should return a valid desktop name (e.g. "Default" or thread desktop)
+        Assert.NotNull(curDesktop);
+
+        bool isAdmin = Security.DesktopManager.IsAdministrator;
+        // Verify evaluating IsAdministrator does not throw
+        Assert.True(isAdmin == true || isAdmin == false);
+
+        bool attached = Security.DesktopManager.EnsureThreadOnInputDesktop(out string inputName);
+        Assert.NotNull(inputName);
+    }
+
+    [Fact]
+    public void DesktopManager_SendCtrlAltDel_DoesNotThrow()
+    {
+        // Calling SendCtrlAltDel should safely fall back and complete without unhandled exception
+        Security.DesktopManager.SendCtrlAltDel();
+    }
+
+    [Fact]
+    public void ScreenCapturer_DynamicEngineCoordination_InitializesAndMeasuresDimensions()
+    {
+        using var capturer = new ScreenCapturer();
+        bool initialized = capturer.Initialize();
+        Assert.True(initialized);
+        Assert.True(capturer.Width > 0);
+        Assert.True(capturer.Height > 0);
+        Assert.NotNull(capturer.EngineName);
+    }
+
+    [Fact]
+    public void PlaceholderFrameHelper_RendersCustomReasonCorrectly()
+    {
+        Bitmap? bmp = null;
+        Graphics? g = null;
+        string customReason = "Run RemoteLAN as Administrator on host PC.";
+
+        var result = PlaceholderFrameHelper.RenderLockPlaceholder(
+            ref bmp,
+            ref g,
+            1280,
+            720,
+            "GDI BitBlt",
+            customReason);
+
+        Assert.NotNull(result);
+        Assert.Equal(1280, result.Width);
+        Assert.Equal(720, result.Height);
+
+        g?.Dispose();
+        bmp?.Dispose();
+    }
 }

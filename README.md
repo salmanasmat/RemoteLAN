@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://semver.org)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
 
@@ -16,12 +16,13 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Mode**: Configure a permanent custom password for unattended access without requiring on-screen confirmation.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
-- **Fast Screen Streaming & Lock Screen Resilience**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback. Gracefully handles Windows lock screen transitions (`Winlogon` isolation) with informative status overlays, keep-awake power management (`SetThreadExecutionState`), and instantaneous DXGI auto-recovery upon desktop unlock.
+- **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully attaches to the active Windows input desktop (`Winlogon`), captures the actual lock screen and password login screen, and forwards remote keystrokes directly into Windows Logon so users can enter their password and log in remotely just like AnyDesk and RustDesk.
+- **Send Ctrl+Alt+Del / Wake Remote Host**: Dedicated one-click "Ctrl+Alt+Del" toolbar button in the remote session viewer to wake the remote lock screen wallpaper and reveal the Windows sign-in credentials prompt.
 - **Natural Mouse Pointer & Dynamic Resolution**: Standard mouse arrow pointer in the remote desktop viewport (eliminating awkward `+` crosshair cursors), with live dynamic resolution adaptation and normalized coordinate translation across display mode changes.
-- **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
+- **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling, fully synchronized with the active input desktop.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
 - **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.5.0`).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.6.0`).
 
 ---
 
@@ -34,7 +35,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, and lock recovery test suite (41 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, and lock recovery test suite (47 tests)
 ```
 
 ### Network Protocols
@@ -60,6 +61,7 @@ All authentication, desktop video frames, and remote mouse/keyboard inputs multi
 - `0x21` — `MouseButton` (Left, Right, Middle / Down, Up)
 - `0x22` — `MouseWheel` (Wheel scroll delta)
 - `0x30` — `KeyboardKey` (Virtual Key Code, KeyDown/KeyUp, extended flag)
+- `0x35` — `SendCtrlAltDel` (Remote CAD / wake sign-in screen command)
 
 ---
 
@@ -93,7 +95,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v0.5.0.exe`
+`dist/RemoteLAN_Setup_v0.6.0.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required on target PCs.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.

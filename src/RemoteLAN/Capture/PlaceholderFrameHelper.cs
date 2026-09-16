@@ -82,8 +82,8 @@ public static class PlaceholderFrameHelper
             using var tipBrush = new SolidBrush(Color.FromArgb(148, 163, 184)); // #94A3B8
 
             string line1 = "The remote Windows desktop is currently locked at the sign-in screen.";
-            string line2 = "Windows isolates the secure logon desktop from user-mode remote capture.";
-            string line3 = "Live desktop streaming will resume automatically when the PC is unlocked.";
+            string line2 = customReason ?? "Administrator privileges or Windows Service required to access the secure desktop.";
+            string line3 = "Run RemoteLAN as Administrator on the host PC to view and unlock remotely.";
 
             g.DrawString(line1, bodyFont, bodyBrush, cardX + 32, cardY + 112);
             g.DrawString(line2, bodyFont, tipBrush, cardX + 32, cardY + 140);

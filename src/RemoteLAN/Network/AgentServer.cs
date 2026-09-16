@@ -338,6 +338,15 @@ public sealed class AgentServer : IDisposable
                         var key = KeyboardKeyMessage.Deserialize(payload);
                         _inputInjector.InjectKeyboardKey(key.VirtualKeyCode, key.Action, key.IsExtendedKey);
                         break;
+
+                    case MessageType.SendCtrlAltDel:
+                        DesktopManager.SendCtrlAltDel();
+                        break;
+
+                    case MessageType.PowerAction:
+                        var powerMsg = PowerActionMessage.Deserialize(payload);
+                        SystemPowerManager.ExecutePowerAction(powerMsg.Action);
+                        break;
                 }
             }
             catch (OperationCanceledException)
