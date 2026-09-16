@@ -2,14 +2,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using RemoteLAN.Agent.Capture;
-using RemoteLAN.Agent.Discovery;
-using RemoteLAN.Agent.Input;
-using RemoteLAN.Agent.Security;
+using RemoteLAN.Capture;
+using RemoteLAN.Discovery;
+using RemoteLAN.Input;
+using RemoteLAN.Security;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
 
-namespace RemoteLAN.Agent.Network;
+namespace RemoteLAN.Network;
 
 public sealed class AgentServer : IDisposable
 {

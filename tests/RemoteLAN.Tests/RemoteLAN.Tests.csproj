@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
 
+    <Version>0.3.0</Version>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -23,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RemoteLAN.Protocol\RemoteLAN.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\RemoteLAN\RemoteLAN.csproj" />
     <ProjectReference Include="..\..\src\RemoteLAN.Agent\RemoteLAN.Agent.csproj" />
     <ProjectReference Include="..\..\src\RemoteLAN.Controller\RemoteLAN.Controller.csproj" />
   </ItemGroup>

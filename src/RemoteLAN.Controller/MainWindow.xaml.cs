@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using RemoteLAN.Controller.Discovery;
 using RemoteLAN.Controller.Input;
 using RemoteLAN.Controller.Network;
 using RemoteLAN.Controller.Rendering;
+using RemoteLAN.Protocol.Discovery;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
 
@@ -14,6 +17,7 @@ public partial class MainWindow : Window
 {
     private readonly ControllerClient _client;
     private readonly FrameRenderer _renderer;
+    private readonly LanDiscoveryClient _discoveryClient = new();
     private readonly Stopwatch _mouseThrottleStopwatch = Stopwatch.StartNew();
     private Point _lastSentMousePos = new(-1, -1);
 
@@ -29,6 +33,9 @@ public partial class MainWindow : Window
         _client.StateChanged += Client_StateChanged;
         _client.FrameReceived += Client_FrameReceived;
         _client.ScreenResolutionReceived += Client_ScreenResolutionReceived;
+
+        // Start background discovery scan on startup
+        _ = PerformDiscoveryScanAsync();
     }
 
     private void Renderer_FrameReady(System.Windows.Media.Imaging.BitmapSource image)
@@ -107,6 +114,50 @@ public partial class MainWindow : Window
     private void Client_FrameReceived(byte[] jpegBytes)
     {
         _renderer.ProcessJpegFrame(jpegBytes);
+    }
+
+    private async void ScanLanBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await PerformDiscoveryScanAsync();
+    }
+
+    private async Task PerformDiscoveryScanAsync()
+    {
+        ScanLanBtn.IsEnabled = false;
+        ScanStatusText.Text = "Scanning LAN...";
+
+        try
+        {
+            var agents = await _discoveryClient.DiscoverAgentsAsync();
+            DiscoveredPcsComboBox.ItemsSource = agents;
+
+            if (agents.Count > 0)
+            {
+                DiscoveredPcsComboBox.SelectedIndex = 0;
+                ScanStatusText.Text = $"Found {agents.Count} PC(s)";
+            }
+            else
+            {
+                ScanStatusText.Text = "No PCs found";
+            }
+        }
+        catch
+        {
+            ScanStatusText.Text = "Scan error";
+        }
+        finally
+        {
+            ScanLanBtn.IsEnabled = true;
+        }
+    }
+
+    private void DiscoveredPcsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DiscoveredPcsComboBox.SelectedItem is DiscoveredAgent agent)
+        {
+            TargetIpTextBox.Text = agent.IpAddress;
+            TargetPortTextBox.Text = agent.Port.ToString();
+        }
     }
 
     private async void ConnectBtn_Click(object sender, RoutedEventArgs e)
