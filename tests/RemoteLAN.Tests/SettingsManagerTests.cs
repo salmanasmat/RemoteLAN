@@ -97,4 +97,101 @@ public class SettingsManagerTests : IDisposable
         // Password retained for convenience when re-enabling
         Assert.Equal("PermanentHostPass99!", manager2.GetUnattendedPassword());
     }
+
+    [Fact]
+    public void SettingsManager_UnauthorizedAccess_Defaults()
+    {
+        var manager = new SettingsManager(_tempSettingsPath);
+        Assert.True(manager.BlockUnauthorizedAttempts);
+        Assert.Equal(5, manager.MaxFailedAuthAttempts);
+        Assert.Equal(10, manager.LockoutDurationMinutes);
+        Assert.False(manager.StartMinimizedToTray);
+        Assert.True(manager.MinimizeToTrayOnClose);
+    }
+
+    [Fact]
+    public void SettingsManager_LockoutLogic_TriggersAfterMaxAttempts()
+    {
+        var manager = new SettingsManager(_tempSettingsPath)
+        {
+            BlockUnauthorizedAttempts = true,
+            MaxFailedAuthAttempts = 3,
+            LockoutDurationMinutes = 15
+        };
+
+        string testIp = "192.168.1.99";
+
+        // First attempt - not locked out
+        manager.RecordFailedAttempt(testIp);
+        Assert.False(manager.IsIpLockedOut(testIp, out _));
+
+        // Second attempt - not locked out
+        manager.RecordFailedAttempt(testIp);
+        Assert.False(manager.IsIpLockedOut(testIp, out _));
+
+        // Third attempt - now locked out!
+        manager.RecordFailedAttempt(testIp);
+        bool locked = manager.IsIpLockedOut(testIp, out TimeSpan remaining);
+        Assert.True(locked);
+        Assert.True(remaining.TotalMinutes > 14);
+        Assert.Equal(1, manager.GetActiveLockoutsCount());
+    }
+
+    [Fact]
+    public void SettingsManager_ResetFailedAttempts_ClearsLockout()
+    {
+        var manager = new SettingsManager(_tempSettingsPath)
+        {
+            BlockUnauthorizedAttempts = true,
+            MaxFailedAuthAttempts = 2
+        };
+
+        string testIp = "192.168.1.101";
+
+        manager.RecordFailedAttempt(testIp);
+        manager.RecordFailedAttempt(testIp);
+        Assert.True(manager.IsIpLockedOut(testIp, out _));
+
+        manager.ResetFailedAttempts(testIp);
+        Assert.False(manager.IsIpLockedOut(testIp, out _));
+    }
+
+    [Fact]
+    public void SettingsManager_ClearAllLockouts_RemovesAllBlocks()
+    {
+        var manager = new SettingsManager(_tempSettingsPath)
+        {
+            BlockUnauthorizedAttempts = true,
+            MaxFailedAuthAttempts = 1
+        };
+
+        manager.RecordFailedAttempt("10.0.0.1");
+        manager.RecordFailedAttempt("10.0.0.2");
+        Assert.Equal(2, manager.GetActiveLockoutsCount());
+
+        manager.ClearAllLockouts();
+        Assert.Equal(0, manager.GetActiveLockoutsCount());
+        Assert.False(manager.IsIpLockedOut("10.0.0.1", out _));
+        Assert.False(manager.IsIpLockedOut("10.0.0.2", out _));
+    }
+
+    [Fact]
+    public void SettingsManager_GeneralPreferences_Persist()
+    {
+        var manager1 = new SettingsManager(_tempSettingsPath)
+        {
+            StartMinimizedToTray = true,
+            MinimizeToTrayOnClose = false,
+            MaxFailedAuthAttempts = 10,
+            LockoutDurationMinutes = 60,
+            BlockUnauthorizedAttempts = false
+        };
+
+        var manager2 = new SettingsManager(_tempSettingsPath);
+        Assert.True(manager2.StartMinimizedToTray);
+        Assert.False(manager2.MinimizeToTrayOnClose);
+        Assert.Equal(10, manager2.MaxFailedAuthAttempts);
+        Assert.Equal(60, manager2.LockoutDurationMinutes);
+        Assert.False(manager2.BlockUnauthorizedAttempts);
+    }
 }

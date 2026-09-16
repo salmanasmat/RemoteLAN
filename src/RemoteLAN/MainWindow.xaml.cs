@@ -58,7 +58,8 @@ public partial class MainWindow : Window
             ProtocolConstants.DefaultPort,
             initialPin: savedHostPin,
             unattendedAccessEnabled: unattendedEnabled,
-            unattendedPassword: unattendedPassword);
+            unattendedPassword: unattendedPassword,
+            settingsManager: _settingsManager);
 
         // If this is the first run and a PIN was newly generated, persist it
         if (string.IsNullOrWhiteSpace(savedHostPin))
@@ -70,10 +71,8 @@ public partial class MainWindow : Window
         _server.ClientConnected += Server_ClientConnected;
         _server.ClientDisconnected += Server_ClientDisconnected;
         _server.PinManager.PinChanged += PinManager_PinChanged;
-        _server.PinManager.UnattendedAccessChanged += PinManager_UnattendedAccessChanged;
 
         UpdatePinDisplay(_server.PinManager.CurrentPin);
-        UpdateUnattendedUi(unattendedEnabled, unattendedPassword);
         LoadLocalIpAddresses();
 
         _server.Start();
@@ -275,137 +274,6 @@ public partial class MainWindow : Window
 
         _server.PinManager.SetPin(code);
         CustomCodeModalOverlay.Visibility = Visibility.Collapsed;
-    }
-
-    private void PinManager_UnattendedAccessChanged(bool enabled, string? password)
-    {
-        UpdateUnattendedUi(enabled, password);
-    }
-
-    private void UpdateUnattendedUi(bool enabled, string? password)
-    {
-        Dispatcher.Invoke(() =>
-        {
-            bool active = enabled && !string.IsNullOrWhiteSpace(password);
-            EnableUnattendedCheckBox.IsChecked = active;
-
-            if (active)
-            {
-                UnattendedStatusBadge.Background = new SolidColorBrush(Color.FromRgb(236, 253, 245)); // Emerald 50
-                UnattendedStatusText.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105)); // Emerald 600
-                UnattendedStatusText.Text = "ACTIVE";
-                SetUnattendedPasswordBtn.Content = "Change Password...";
-            }
-            else
-            {
-                UnattendedStatusBadge.Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)); // Slate 100
-                UnattendedStatusText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Slate 500
-                UnattendedStatusText.Text = "DISABLED";
-                SetUnattendedPasswordBtn.Content = string.IsNullOrWhiteSpace(password) ? "Set Password..." : "Change Password...";
-            }
-        });
-    }
-
-    private void EnableUnattendedCheckBox_Checked(object sender, RoutedEventArgs e)
-    {
-        string? currentPass = _settingsManager.GetUnattendedPassword();
-        if (string.IsNullOrWhiteSpace(currentPass))
-        {
-            OpenUnattendedModal();
-        }
-        else
-        {
-            _settingsManager.SetUnattendedAccess(true);
-            _server.PinManager.ConfigureUnattendedAccess(true, currentPass);
-            UpdateUnattendedUi(true, currentPass);
-        }
-    }
-
-    private void EnableUnattendedCheckBox_Unchecked(object sender, RoutedEventArgs e)
-    {
-        _settingsManager.SetUnattendedAccess(false);
-        _server.PinManager.UnattendedAccessEnabled = false;
-        UpdateUnattendedUi(false, _settingsManager.GetUnattendedPassword());
-    }
-
-    private void SetUnattendedPasswordBtn_Click(object sender, RoutedEventArgs e)
-    {
-        OpenUnattendedModal();
-    }
-
-    private void OpenUnattendedModal()
-    {
-        UnattendedNewPasswordBox.Password = string.Empty;
-        UnattendedConfirmPasswordBox.Password = string.Empty;
-        UnattendedModalStatusText.Visibility = Visibility.Collapsed;
-        UnattendedModalStatusText.Text = string.Empty;
-        UnattendedPasswordModalOverlay.Visibility = Visibility.Visible;
-        UnattendedNewPasswordBox.Focus();
-    }
-
-    private void CloseUnattendedModal_Click(object sender, RoutedEventArgs e)
-    {
-        UnattendedPasswordModalOverlay.Visibility = Visibility.Collapsed;
-        string? currentPass = _settingsManager.GetUnattendedPassword();
-        if (string.IsNullOrWhiteSpace(currentPass))
-        {
-            EnableUnattendedCheckBox.IsChecked = false;
-        }
-    }
-
-    private void UnattendedPasswordModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.OriginalSource == UnattendedPasswordModalOverlay)
-        {
-            CloseUnattendedModal_Click(this, new RoutedEventArgs());
-        }
-    }
-
-    private void UnattendedPasswordBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            SaveUnattendedPassword_Click(this, new RoutedEventArgs());
-        }
-        else if (e.Key == Key.Escape)
-        {
-            CloseUnattendedModal_Click(this, new RoutedEventArgs());
-        }
-    }
-
-    private void SaveUnattendedPassword_Click(object sender, RoutedEventArgs e)
-    {
-        string pass1 = UnattendedNewPasswordBox.Password;
-        string pass2 = UnattendedConfirmPasswordBox.Password;
-
-        if (string.IsNullOrWhiteSpace(pass1))
-        {
-            UnattendedModalStatusText.Text = "Please enter a password.";
-            UnattendedModalStatusText.Visibility = Visibility.Visible;
-            UnattendedNewPasswordBox.Focus();
-            return;
-        }
-
-        if (pass1.Length < 4)
-        {
-            UnattendedModalStatusText.Text = "Password must be at least 4 characters long.";
-            UnattendedModalStatusText.Visibility = Visibility.Visible;
-            UnattendedNewPasswordBox.Focus();
-            return;
-        }
-
-        if (pass1 != pass2)
-        {
-            UnattendedModalStatusText.Text = "Passwords do not match. Please re-type.";
-            UnattendedModalStatusText.Visibility = Visibility.Visible;
-            UnattendedConfirmPasswordBox.Focus();
-            return;
-        }
-
-        _settingsManager.SetUnattendedAccess(true, pass1);
-        _server.PinManager.ConfigureUnattendedAccess(true, pass1);
-        UpdateUnattendedUi(true, pass1);
-        UnattendedPasswordModalOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void DisconnectIncomingClient_Click(object sender, RoutedEventArgs e)
@@ -653,11 +521,6 @@ public partial class MainWindow : Window
             if (PinModalOverlay.Visibility == Visibility.Visible)
             {
                 ClosePinModal_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
-            else if (UnattendedPasswordModalOverlay.Visibility == Visibility.Visible)
-            {
-                CloseUnattendedModal_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
             else if (CustomCodeModalOverlay.Visibility == Visibility.Visible)
@@ -919,6 +782,12 @@ public partial class MainWindow : Window
         openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
         openItem.Click += (s, e) => ShowAndActivate();
 
+        var settingsItem = new WinForms.ToolStripMenuItem("Settings...");
+        settingsItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(0));
+
+        var aboutItem = new WinForms.ToolStripMenuItem("About RemoteLAN");
+        aboutItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(2));
+
         var hostItem = new WinForms.ToolStripMenuItem($"Host: {Environment.MachineName}");
         hostItem.Enabled = false;
 
@@ -926,6 +795,8 @@ public partial class MainWindow : Window
         exitItem.Click += (s, e) => ExitApplication();
 
         contextMenu.Items.Add(openItem);
+        contextMenu.Items.Add(settingsItem);
+        contextMenu.Items.Add(aboutItem);
         contextMenu.Items.Add(new WinForms.ToolStripSeparator());
         contextMenu.Items.Add(hostItem);
         contextMenu.Items.Add(new WinForms.ToolStripSeparator());
@@ -943,18 +814,40 @@ public partial class MainWindow : Window
         };
     }
 
+    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    {
+        OpenSettingsWindow(0);
+    }
+
+    public void OpenSettingsWindow(int initialTab = 0)
+    {
+        var settingsWin = new SettingsWindow(_settingsManager, _server.PinManager, initialTab)
+        {
+            Owner = this
+        };
+        settingsWin.ShowDialog();
+    }
+
     protected override void OnClosing(CancelEventArgs e)
     {
         if (!_isExplicitExit)
         {
-            e.Cancel = true;
-            Hide();
-            if (!_hasShownTrayTip)
+            if (_settingsManager.MinimizeToTrayOnClose)
             {
-                _hasShownTrayTip = true;
-                _trayIcon?.ShowBalloonTip(2000, "RemoteLAN", "RemoteLAN is running in the background.", WinForms.ToolTipIcon.Info);
+                e.Cancel = true;
+                Hide();
+                if (!_hasShownTrayTip)
+                {
+                    _hasShownTrayTip = true;
+                    _trayIcon?.ShowBalloonTip(2000, "RemoteLAN", "RemoteLAN is running in the background.", WinForms.ToolTipIcon.Info);
+                }
+                return;
             }
-            return;
+            else
+            {
+                ExitApplication();
+                return;
+            }
         }
 
         base.OnClosing(e);

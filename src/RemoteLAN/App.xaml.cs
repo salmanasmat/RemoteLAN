@@ -65,7 +65,8 @@ public partial class App : Application
         catch { }
 
         // Check if application should start hidden in the background
-        bool startInBackground = e.Args.Any(arg =>
+        var settings = new Security.SettingsManager();
+        bool startInBackground = settings.StartMinimizedToTray || e.Args.Any(arg =>
             arg.Equals("--background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("/background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("-background", StringComparison.OrdinalIgnoreCase) ||

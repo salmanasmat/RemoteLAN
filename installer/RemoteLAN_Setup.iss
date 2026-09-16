@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "0.6.0"
+#define MyAppVersion "0.7.0"
 #define MyAppPublisher "RemoteLAN Team"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -79,11 +79,8 @@ procedure CleanOldInstallation(const AppDir: string);
 begin
   if DirExists(AppDir) then
   begin
-    // Remove old executable, assemblies, and debug symbols
-    DelTree(AppDir + '\*.dll', False, True, False);
-    DelTree(AppDir + '\*.exe', False, True, False);
-    DelTree(AppDir + '\*.json', False, True, False);
-    DelTree(AppDir + '\*.pdb', False, True, False);
+    // Remove all previous installation files and subdirectories cleanly
+    DelTree(AppDir + '\*', False, True, True);
   end;
 end;
 

@@ -343,7 +343,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v0.6.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v0.7.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -399,46 +399,27 @@
                         </Border>
 
                         <!-- Code Action Buttons -->
-                        <Grid Margin="0,0,0,14">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Copy" Margin="0,0,3,0" Height="32" 
-                                    Style="{StaticResource SecondaryButtonStyle}" Click="CopyPin_Click"/>
-                            <Button Grid.Column="1" Content="New" Margin="3,0,3,0" Height="32" 
-                                    Style="{StaticResource SecondaryButtonStyle}" Click="RegeneratePin_Click"/>
-                            <Button Grid.Column="2" Content="Custom..." Margin="3,0,0,0" Height="32" 
-                                    Style="{StaticResource SecondaryButtonStyle}" Click="CustomPin_Click"/>
-                        </Grid>
+                        <StackPanel Margin="0,0,0,14">
+                            <!-- Full Width Copy Button -->
+                            <Button Content="Copy" Height="34" Margin="0,0,0,6" 
+                                    Style="{StaticResource SecondaryButtonStyle}" FontWeight="SemiBold"
+                                    Click="CopyPin_Click" ToolTip="Copy session access code to clipboard"/>
 
-                        <!-- Unattended Access Section -->
-                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,12" Margin="0,0,0,16"
-                                SnapsToDevicePixels="True">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="UNATTENDED ACCESS" FontSize="10" FontWeight="Bold" Foreground="#64748B" VerticalAlignment="Center"/>
-                                    <Border x:Name="UnattendedStatusBadge" Grid.Column="1" Background="#F1F5F9" CornerRadius="4" Padding="6,2">
-                                        <TextBlock x:Name="UnattendedStatusText" Text="DISABLED" FontSize="9" FontWeight="Bold" Foreground="#64748B"/>
-                                    </Border>
-                                </Grid>
-
-                                <CheckBox x:Name="EnableUnattendedCheckBox" Content="Enable Unattended Access" FontSize="12" FontWeight="SemiBold"
-                                          Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,6"
-                                          Checked="EnableUnattendedCheckBox_Checked" Unchecked="EnableUnattendedCheckBox_Unchecked"/>
-
-                                <TextBlock Text="Access anytime with a permanent password without requiring on-screen confirmation."
-                                           FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                                <Button x:Name="SetUnattendedPasswordBtn" Content="Set Password..." Style="{StaticResource SecondaryButtonStyle}"
-                                        Height="30" FontSize="11" FontWeight="SemiBold" Click="SetUnattendedPasswordBtn_Click"/>
-                            </StackPanel>
-                        </Border>
+                            <!-- New and Custom Buttons Below -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="New" Height="32" 
+                                        Style="{StaticResource SecondaryButtonStyle}" Click="RegeneratePin_Click"
+                                        ToolTip="Generate a new random access code"/>
+                                <Button Grid.Column="2" Content="Custom..." Height="32" 
+                                        Style="{StaticResource SecondaryButtonStyle}" Click="CustomPin_Click"
+                                        ToolTip="Set a custom access code"/>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -459,8 +440,13 @@
                     </Grid>
                 </Border>
 
-                <!-- Reassuring Footnote -->
-                <TextBlock Grid.Row="4" Text="Direct LAN Connection • Private" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+                <!-- Bottom Action & Settings -->
+                <StackPanel Grid.Row="4" Margin="0,14,0,0">
+                    <Button Content="⚙️  Settings" Style="{StaticResource SecondaryButtonStyle}" Height="36" 
+                            HorizontalAlignment="Stretch" FontSize="12" FontWeight="SemiBold"
+                            Click="OpenSettings_Click" ToolTip="Open Settings (Security, Preferences, and About)"/>
+                    <TextBlock Text="Direct LAN Connection • Private" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -677,65 +663,6 @@
                                 Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="Collapsed"
                                 Click="ModalForgetPasswordBtn_Click"/>
                     </StackPanel>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!-- ================================================================= -->
-        <!-- UNATTENDED ACCESS PASSWORD MODAL OVERLAY                          -->
-        <!-- ================================================================= -->
-        <Grid Grid.ColumnSpan="2" x:Name="UnattendedPasswordModalOverlay" Visibility="Collapsed" 
-              Background="#660F172A" Panel.ZIndex="1001" MouseDown="UnattendedPasswordModalOverlay_MouseDown"
-              SnapsToDevicePixels="True" UseLayoutRounding="True">
-            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
-                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
-                    SnapsToDevicePixels="True" UseLayoutRounding="True">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Header -->
-                    <Grid Grid.Row="0">
-                        <TextBlock Text="Unattended Access Password" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
-                                Cursor="Hand" Click="CloseUnattendedModal_Click"/>
-                    </Grid>
-
-                    <!-- Description -->
-                    <TextBlock Grid.Row="1" Text="Set a permanent password to access this computer remotely anytime without someone present."
-                               FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,10,0,16"/>
-
-                    <!-- Password Inputs -->
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="NEW PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
-                        <PasswordBox x:Name="UnattendedNewPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" Height="40" Margin="0,0,0,12"
-                                     KeyDown="UnattendedPasswordBox_KeyDown"/>
-
-                        <TextBlock Text="CONFIRM PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
-                        <PasswordBox x:Name="UnattendedConfirmPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" Height="40"
-                                     KeyDown="UnattendedPasswordBox_KeyDown"/>
-                    </StackPanel>
-
-                    <!-- Validation / Status -->
-                    <TextBlock Grid.Row="3" x:Name="UnattendedModalStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#DC2626" 
-                               HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
-
-                    <!-- Action Buttons -->
-                    <Grid Grid.Row="4" Margin="0,18,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="CloseUnattendedModal_Click"/>
-                        <Button Grid.Column="2" Content="Save Password" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="SaveUnattendedPassword_Click"/>
-                    </Grid>
                 </Grid>
             </Border>
         </Grid>

@@ -159,6 +159,20 @@ public class ProtocolTests
         });
     }
 
+    [Theory]
+    [InlineData(PowerActionType.Lock)]
+    [InlineData(PowerActionType.Sleep)]
+    [InlineData(PowerActionType.Restart)]
+    [InlineData(PowerActionType.Shutdown)]
+    public void PowerActionMessage_RoundTrip_Serialization(PowerActionType actionType)
+    {
+        var original = new PowerActionMessage { Action = actionType };
+        byte[] bytes = original.Serialize();
+        var deserialized = PowerActionMessage.Deserialize(bytes);
+
+        Assert.Equal(original.Action, deserialized.Action);
+    }
+
     private sealed class FragmentedStream : Stream
     {
         private readonly byte[] _data;

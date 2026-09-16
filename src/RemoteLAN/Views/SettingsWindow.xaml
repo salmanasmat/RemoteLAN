@@ -1,0 +1,450 @@
+<Window x:Class="RemoteLAN.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="RemoteLAN — Settings" Height="680" Width="880"
+        MinHeight="640" MinWidth="840"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC" Foreground="#0F172A"
+        FontFamily="Segoe UI"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        Icon="/icon.ico">
+
+    <Window.Resources>
+        <!-- Modern Button Styles -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1E40AF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#94A3B8"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F1F5F9"/>
+            <Setter Property="Foreground" Value="#1E293B"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#CBD5E1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sidebar Navigation Button Style -->
+        <Style x:Key="NavButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F1F5F9"/>
+                                <Setter Property="Foreground" Value="#0F172A"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#EFF6FF"/>
+                                <Setter Property="Foreground" Value="#2563EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Card Container Style -->
+        <Style x:Key="CardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Left Sidebar Navigation -->
+            <ColumnDefinition Width="220"/>
+            <!-- Right Settings Panel -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Navigation Sidebar -->
+        <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0" Padding="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Sidebar Header -->
+                <StackPanel Grid.Row="0" Margin="0,4,0,20">
+                    <TextBlock Text="Settings" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/>
+                    <TextBlock Text="Configure RemoteLAN" FontSize="11" Foreground="#64748B" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <!-- Navigation Tabs -->
+                <StackPanel Grid.Row="1">
+                    <RadioButton x:Name="NavSecurityBtn" Content="🛡️  Security &amp; Access" Style="{StaticResource NavButtonStyle}" IsChecked="True" Checked="NavSecurityBtn_Checked"/>
+                    <RadioButton x:Name="NavGeneralBtn" Content="⚙️  General &amp; System" Style="{StaticResource NavButtonStyle}" Checked="NavGeneralBtn_Checked"/>
+                    <RadioButton x:Name="NavAboutBtn" Content="ℹ️  About RemoteLAN" Style="{StaticResource NavButtonStyle}" Checked="NavAboutBtn_Checked"/>
+                </StackPanel>
+
+                <!-- Sidebar Footer Note -->
+                <TextBlock Grid.Row="2" Text="RemoteLAN v0.7.0" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Right Content Panel -->
+        <Grid Grid.Column="1" Margin="24">
+            <!-- ============================================================= -->
+            <!-- TAB 1: SECURITY & ACCESS (No scrollbars)                       -->
+            <!-- ============================================================= -->
+            <StackPanel x:Name="SecurityPanel" Visibility="Visible">
+                <TextBlock Text="Security &amp; Access Control" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                <TextBlock Text="Manage unattended access credentials and unauthorized connection rate-limiting." FontSize="12" Foreground="#64748B" Margin="0,0,0,18"/>
+
+                <!-- Unattended Access Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Unattended Access" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                <TextBlock Text="Allow connecting anytime using a permanent password without requiring local user confirmation." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <CheckBox x:Name="EnableUnattendedCheckBox" Grid.Column="1" Content="Enable" FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" VerticalAlignment="Center"
+                                      Checked="EnableUnattendedCheckBox_Changed" Unchecked="EnableUnattendedCheckBox_Changed"/>
+                        </Grid>
+
+                        <!-- Password Fields Area -->
+                        <Border x:Name="UnattendedCredentialsArea" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,10,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Set Permanent Password" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"/>
+
+                                <!-- Password Input Row -->
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <PasswordBox x:Name="UnattendedPasswordBox" Height="34" VerticalContentAlignment="Center" Padding="8,0" Background="#FFFFFF" BorderBrush="#CBD5E1" FontSize="13"/>
+                                    <TextBox x:Name="UnattendedPasswordTextBox" Height="34" VerticalContentAlignment="Center" Padding="8,0" Background="#FFFFFF" BorderBrush="#CBD5E1" FontSize="13" Visibility="Collapsed"/>
+                                    <Button Grid.Column="1" x:Name="TogglePasswordVisibilityBtn" Content="👁️" Width="40" Height="34" Margin="6,0,0,0" Padding="0"
+                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" FontSize="14"
+                                            Style="{StaticResource SecondaryButtonStyle}" Click="TogglePasswordVisibilityBtn_Click" ToolTip="Show/Hide Password"/>
+                                </Grid>
+
+                                <!-- Confirm Password Row -->
+                                <TextBlock Text="Confirm Permanent Password" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
+                                <PasswordBox x:Name="ConfirmPasswordBox" Height="34" VerticalContentAlignment="Center" Padding="8,0" Background="#FFFFFF" BorderBrush="#CBD5E1" FontSize="13" Margin="0,0,0,12"/>
+
+                                <!-- Action Button & Status -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Save Password" Style="{StaticResource PrimaryButtonStyle}" Click="SaveUnattendedPasswordBtn_Click"/>
+                                    <TextBlock Grid.Column="1" x:Name="UnattendedStatusMessage" Text="" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Unauthorized Access & Brute-Force Protection Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Unauthorized Access Protection" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                <TextBlock Text="Automatically block remote IP addresses that repeatedly enter incorrect PINs or passwords." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <CheckBox x:Name="BlockUnauthorizedCheckBox" Grid.Column="1" Content="Enabled" FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" VerticalAlignment="Center"
+                                      Checked="BlockUnauthorizedCheckBox_Changed" Unchecked="BlockUnauthorizedCheckBox_Changed"/>
+                        </Grid>
+
+                        <!-- Brute Force Rules -->
+                        <StackPanel x:Name="BruteForceConfigArea" Margin="0,8,0,0">
+                            <Grid Margin="0,6,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="200"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Maximum failed attempts before lockout" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
+                                    <TextBlock Text="Number of failed auth attempts before blocking the IP." FontSize="11" Foreground="#94A3B8"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" x:Name="MaxAttemptsComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="MaxAttemptsComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="3 attempts"/>
+                                    <ComboBoxItem Content="5 attempts (Recommended)"/>
+                                    <ComboBoxItem Content="10 attempts"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Grid Margin="0,6,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="200"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Lockout duration" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
+                                    <TextBlock Text="How long an offending IP address remains blocked." FontSize="11" Foreground="#94A3B8"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" x:Name="LockoutDurationComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="LockoutDurationComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="5 minutes"/>
+                                    <ComboBoxItem Content="10 minutes (Recommended)"/>
+                                    <ComboBoxItem Content="30 minutes"/>
+                                    <ComboBoxItem Content="60 minutes"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <!-- Active Lockouts Telemetry -->
+                            <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,4,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="LockedOutCountText" Text="Currently locked out IP addresses: 0" FontSize="12" FontWeight="SemiBold" Foreground="#475569"/>
+                                        <TextBlock Text="Addresses are automatically unblocked once their lockout period expires." FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Clear Blocked IPs" Style="{StaticResource SecondaryButtonStyle}" Click="ClearLockoutsBtn_Click"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ============================================================= -->
+            <!-- TAB 2: GENERAL & SYSTEM (No scrollbars)                        -->
+            <!-- ============================================================= -->
+            <StackPanel x:Name="GeneralPanel" Visibility="Collapsed">
+                <TextBlock Text="General &amp; System Preferences" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                <TextBlock Text="Startup, system tray behavior, and network listening options." FontSize="12" Foreground="#64748B" Margin="0,0,0,18"/>
+
+                <!-- Windows Startup Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Windows Startup" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start RemoteLAN automatically with Windows (Background mode)" 
+                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
+                                  Checked="StartWithWindowsCheckBox_Changed" Unchecked="StartWithWindowsCheckBox_Changed"/>
+                        <TextBlock Text="When enabled, RemoteLAN launches silently in the system tray when you log in, so you can connect to this PC remotely at any time."
+                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Window & Tray Behavior Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Window &amp; Tray Behavior" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                        
+                        <CheckBox x:Name="MinimizeOnCloseCheckBox" Content="Minimize to system tray when closing the window" 
+                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,8"
+                                  Checked="MinimizeOnCloseCheckBox_Changed" Unchecked="MinimizeOnCloseCheckBox_Changed"/>
+                        <TextBlock Text="Keeps the agent background server active in the tray when the main window is closed."
+                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                        <CheckBox x:Name="StartMinimizedCheckBox" Content="Start minimized to system tray by default" 
+                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
+                                  Checked="StartMinimizedCheckBox_Changed" Unchecked="StartMinimizedCheckBox_Changed"/>
+                        <TextBlock Text="Avoids displaying the main window on initial launch unless manually opened."
+                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Network Ports Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Network Ports" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                        <Grid Margin="0,4,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Remote Desktop Streaming Port (TCP):" FontSize="12" Foreground="#334155"/>
+                            <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
+                                <TextBlock Text="9191" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
+                            </Border>
+                        </Grid>
+                        <Grid Margin="0,4,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="LAN Device Discovery Port (UDP):" FontSize="12" Foreground="#334155"/>
+                            <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
+                                <TextBlock Text="9192" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Connections use high-speed direct peer-to-peer TCP sockets without cloud relay servers." FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ============================================================= -->
+            <!-- TAB 3: ABOUT PROJECT & DEVELOPER (No scrollbars)               -->
+            <!-- ============================================================= -->
+            <StackPanel x:Name="AboutPanel" Visibility="Collapsed">
+                <!-- App Hero Card -->
+                <Border Style="{StaticResource CardBorderStyle}" Padding="18">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Source="/icon.png" Width="60" Height="60" Margin="0,0,18,0" VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="RemoteLAN" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
+                                <Border Background="#E0F2FE" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="v0.7.0" FontSize="11" FontWeight="Bold" Foreground="#0284C7"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="High-Performance Peer-to-Peer Remote Desktop for Windows" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" Margin="0,2,0,4"/>
+                            <TextBlock Text="Fast, lightweight remote desktop streaming and input control designed for local area networks and high-throughput environments."
+                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Developer Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Developer &amp; Creator" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
+                        
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="46" Height="46" CornerRadius="23" Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" Margin="0,0,14,0">
+                                <TextBlock Text="SA" FontSize="16" FontWeight="Bold" Foreground="#4F46E5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Salman Asmat" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
+                                <TextBlock Text="hello@salmanasmat.com" FontSize="12" Foreground="#64748B" Margin="0,1,0,0"/>
+                                <TextBlock Margin="0,2,0,0">
+                                    <Hyperlink NavigateUri="https://salmanasmat.com" RequestNavigate="Hyperlink_RequestNavigate">
+                                        <Run Text="salmanasmat.com" FontSize="12" Foreground="#2563EB"/>
+                                    </Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Copy Email" Style="{StaticResource SecondaryButtonStyle}" Click="CopyDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Send Email" Style="{StaticResource PrimaryButtonStyle}" Click="SendDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
+                            <Button Grid.Column="2" Content="🌐 Visit Website" Style="{StaticResource SecondaryButtonStyle}" Click="OpenWebsiteBtn_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Technology Stack & Architecture Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Architecture &amp; Features" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                        <TextBlock Text="• Screen Capture: Desktop Duplication API (DXGI DirectX 11) with resilient GDI fallback" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                        <TextBlock Text="• Session Recovery: Automatic lock screen / UAC secure desktop recovery and wake support" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                        <TextBlock Text="• Power Actions: Remote Workstation Lock, Sleep, Restart, and Shutdown execution" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                        <TextBlock Text="• Network Transport: Direct TCP streaming with binary framed protocol &amp; UDP discovery" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                        <TextBlock Text="• Framework: C# .NET 8 • Windows Presentation Foundation (WPF)" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- License Card -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="License &amp; Copyright" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                            <Border Grid.Column="1" Background="#ECFDF5" CornerRadius="4" Padding="8,2">
+                                <TextBlock Text="GPL v3.0" FontSize="11" FontWeight="Bold" Foreground="#059669"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="RemoteLAN is free and open-source software licensed under the GNU General Public License v3.0. You are welcome to use, modify, and redistribute it under the terms of the GPL-3.0 license."
+                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

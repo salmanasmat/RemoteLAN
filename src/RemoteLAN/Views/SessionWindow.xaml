@@ -43,6 +43,19 @@
                     <Button x:Name="SendCadBtn" Content="Ctrl+Alt+Del" Click="SendCadBtn_Click" Padding="12,4"
                             ToolTip="Send Ctrl+Alt+Del to unlock or wake the remote sign-in screen"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
+                    <Button x:Name="PowerActionsBtn" Content="⚡ Power" Click="PowerActionsBtn_Click" Padding="12,4"
+                            ToolTip="Remote system power actions (Lock, Sleep, Restart, Shutdown)"
+                            Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="🔒 Lock Workstation" Click="PowerLock_Click"/>
+                                <MenuItem Header="🌙 Sleep / Suspend" Click="PowerSleep_Click"/>
+                                <Separator/>
+                                <MenuItem Header="🔄 Restart PC..." Click="PowerRestart_Click"/>
+                                <MenuItem Header="⏻ Shutdown PC..." Click="PowerShutdown_Click"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button x:Name="ToggleFullscreenBtn" Content="Fullscreen" Click="ToggleFullscreenBtn_Click" Padding="12,4"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
                     <Button x:Name="DisconnectBtn" Content="Disconnect" Click="DisconnectBtn_Click" Padding="14,4"
@@ -77,7 +90,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SessionStatusText" Text="Connected • Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v0.6.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v0.7.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
     </Grid>

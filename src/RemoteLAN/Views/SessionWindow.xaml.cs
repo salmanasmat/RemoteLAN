@@ -228,6 +228,100 @@ public partial class SessionWindow : Window
         }
     }
 
+    private void PowerActionsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (PowerActionsBtn.ContextMenu != null)
+        {
+            PowerActionsBtn.ContextMenu.PlacementTarget = PowerActionsBtn;
+            PowerActionsBtn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            PowerActionsBtn.ContextMenu.IsOpen = true;
+        }
+    }
+
+    private async void PowerLock_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        try
+        {
+            await _client.SendPowerActionAsync(PowerActionType.Lock);
+            SessionStatusText.Text = "Lock command sent to remote PC.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to send lock action: {ex.Message}", "Power Action", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void PowerSleep_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        var result = MessageBox.Show(
+            "Are you sure you want to put the remote PC into sleep mode? The remote session will disconnect.",
+            "Sleep Remote PC",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _client.SendPowerActionAsync(PowerActionType.Sleep);
+            SessionStatusText.Text = "Sleep command sent to remote PC.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to send sleep action: {ex.Message}", "Power Action", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void PowerRestart_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        var result = MessageBox.Show(
+            "Are you sure you want to restart the remote PC?\n\nAll unsaved work on the remote machine will be lost and the session will disconnect.",
+            "Restart Remote PC",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _client.SendPowerActionAsync(PowerActionType.Restart);
+            SessionStatusText.Text = "Restart command sent to remote PC. Disconnecting...";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to send restart action: {ex.Message}", "Power Action", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void PowerShutdown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        var result = MessageBox.Show(
+            "Are you sure you want to shut down the remote PC?\n\nThe remote machine will turn off and the session will be terminated.",
+            "Shutdown Remote PC",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _client.SendPowerActionAsync(PowerActionType.Shutdown);
+            SessionStatusText.Text = "Shutdown command sent to remote PC. Disconnecting...";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to send shutdown action: {ex.Message}", "Power Action", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void DisconnectBtn_Click(object sender, RoutedEventArgs e)
     {
         _isUserClosing = true;

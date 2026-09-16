@@ -1,6 +1,7 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://semver.org)
+[![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
 
@@ -12,8 +13,7 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Continuous Auto-Discovery**: Automatically discovers active RemoteLAN PCs on your subnet in the background and presents them as interactive squared tiles (AnyDesk-style) without requiring manual scanning.
 - **System Tray Minimization**: Closing the application window (clicking 'X') hides RemoteLAN to the Windows System Tray notification area, keeping the agent server and discovery listening in the background. Right-click the tray icon to access **Open RemoteLAN** or **Exit RemoteLAN**.
 - **Clean Modern Light Mode UI**:
-  - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment.
-  - **Unattended Access Mode**: Configure a permanent custom password for unattended access without requiring on-screen confirmation.
+  - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment, with a quick-access Settings button.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
 - **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully attaches to the active Windows input desktop (`Winlogon`), captures the actual lock screen and password login screen, and forwards remote keystrokes directly into Windows Logon so users can enter their password and log in remotely just like AnyDesk and RustDesk.
@@ -21,8 +21,13 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Natural Mouse Pointer & Dynamic Resolution**: Standard mouse arrow pointer in the remote desktop viewport (eliminating awkward `+` crosshair cursors), with live dynamic resolution adaptation and normalized coordinate translation across display mode changes.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling, fully synchronized with the active input desktop.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
-- **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.6.0`).
+- **Remote Power Actions**: Dedicated `⚡ Power` dropdown toolbar in the session viewer allowing the controller to execute remote **Lock Workstation**, **Sleep / Suspend**, **Restart PC...**, and **Shutdown PC...** with safety confirmation dialogs to prevent accidental disruption.
+- **Dedicated Settings & Security Interface**: Comprehensive, modern Light Mode settings window accessible via the `⚙️ Settings` button in the left sidebar or system tray context menu:
+  - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs.
+  - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and active lockout inspection.
+  - **General & System Preferences**: Windows auto-startup configuration (registry `Run` key), minimize to tray on close, and startup minimization preferences.
+- **About Section & Developer Credentials**: Built-in About view providing project details (v0.7.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**, [salmanasmat.com](https://salmanasmat.com), `hello@salmanasmat.com`).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.7.0`).
 
 ---
 
@@ -35,7 +40,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, and lock recovery test suite (47 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, and lock recovery test suite (56 tests)
 ```
 
 ### Network Protocols
@@ -62,6 +67,7 @@ All authentication, desktop video frames, and remote mouse/keyboard inputs multi
 - `0x22` — `MouseWheel` (Wheel scroll delta)
 - `0x30` — `KeyboardKey` (Virtual Key Code, KeyDown/KeyUp, extended flag)
 - `0x35` — `SendCtrlAltDel` (Remote CAD / wake sign-in screen command)
+- `0x36` — `PowerAction` (Remote system Lock, Sleep, Restart, Shutdown)
 
 ---
 
@@ -95,7 +101,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v0.6.0.exe`
+`dist/RemoteLAN_Setup_v0.7.0.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required on target PCs.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
@@ -115,7 +121,7 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 
 #### How it Works:
 1. **On PC A**:
-   - The left sidebar displays PC A's IP address, an alphanumeric session access code (e.g. `7K2M9X`), and an Unattended Access configuration card.
+   - The left sidebar displays PC A's IP address, an alphanumeric session access code (e.g. `7K2M9X`), and a **Settings** button for unattended access and security configuration.
 2. **On PC B**:
    - The left sidebar displays PC B's IP address and its own access credentials.
 3. **To connect PC A → PC B**:

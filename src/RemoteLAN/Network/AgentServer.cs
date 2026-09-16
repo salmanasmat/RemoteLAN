@@ -15,6 +15,7 @@ namespace RemoteLAN.Network;
 public sealed class AgentServer : IDisposable
 {
     private readonly int _port;
+    private readonly SettingsManager? _settingsManager;
     private readonly PinManager _pinManager;
     private readonly IScreenCapturer _capturer;
     private readonly JpegFrameEncoder _encoder;
@@ -29,6 +30,7 @@ public sealed class AgentServer : IDisposable
     private readonly object _clientLock = new();
 
     public int Port => _port;
+    public SettingsManager? SettingsManager => _settingsManager;
     public string CaptureEngineName => _capturer.EngineName;
     public int ScreenWidth => _capturer.Width;
     public int ScreenHeight => _capturer.Height;
@@ -43,9 +45,17 @@ public sealed class AgentServer : IDisposable
 
     private bool _unattendedKeepAwakeAcquired;
 
-    public AgentServer(int port = ProtocolConstants.DefaultPort, int jpegQuality = 70, string? initialPin = null, int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort, bool unattendedAccessEnabled = false, string? unattendedPassword = null)
+    public AgentServer(
+        int port = ProtocolConstants.DefaultPort, 
+        int jpegQuality = 70, 
+        string? initialPin = null, 
+        int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort, 
+        bool unattendedAccessEnabled = false, 
+        string? unattendedPassword = null,
+        SettingsManager? settingsManager = null)
     {
         _port = port;
+        _settingsManager = settingsManager;
         _pinManager = new PinManager(initialPin, unattendedAccessEnabled, unattendedPassword);
         _capturer = new ScreenCapturer();
         _encoder = new JpegFrameEncoder(jpegQuality);
@@ -187,8 +197,26 @@ public sealed class AgentServer : IDisposable
             byte[] authPayload = await NetworkFrameReader.ReadPayloadAsync(networkStream, length, ct).ConfigureAwait(false);
             var authReq = AuthRequest.Deserialize(authPayload);
 
+            string clientIp = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? endpoint;
+
+            if (_settingsManager != null && _settingsManager.IsIpLockedOut(clientIp, out var remainingTime))
+            {
+                int remainingMinutes = Math.Max(1, (int)Math.Ceiling(remainingTime.TotalMinutes));
+                var lockedResp = new AuthResponse
+                {
+                    Success = false,
+                    Message = $"Access blocked due to multiple failed attempts. Try again in {remainingMinutes} minute(s)."
+                };
+                await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, lockedResp.Serialize(), ct).ConfigureAwait(false);
+                client.Close();
+                StatusChanged?.Invoke($"Blocked unauthorized connection from {clientIp} (Locked out for {remainingMinutes} min)");
+                return;
+            }
+
             if (!_pinManager.ValidatePin(authReq.Pin))
             {
+                _settingsManager?.RecordFailedAttempt(clientIp);
+
                 var failResp = new AuthResponse
                 {
                     Success = false,
@@ -200,7 +228,10 @@ public sealed class AgentServer : IDisposable
                 return;
             }
 
-            // PIN Verified! Send success response with screen geometry
+            // PIN Verified! Reset any failed attempts
+            _settingsManager?.ResetFailedAttempts(clientIp);
+
+            // Send success response with screen geometry
             var successResp = new AuthResponse
             {
                 Success = true,
