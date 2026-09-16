@@ -1,4 +1,5 @@
 using System.Windows;
+using Point = System.Windows.Point;
 
 namespace RemoteLAN.Input;
 

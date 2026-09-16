@@ -5,6 +5,7 @@ using RemoteLAN.Input;
 using RemoteLAN.Network;
 using RemoteLAN.Rendering;
 using RemoteLAN.Protocol.Messages;
+using Point = System.Windows.Point;
 
 namespace RemoteLAN.Views;
 
@@ -35,9 +36,11 @@ public partial class SessionWindow : Window
         ViewportContainer.Focus();
     }
 
+    private bool _isUserClosing;
+
     private void Renderer_FrameReady(System.Windows.Media.Imaging.BitmapSource image)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             ScreenViewport.Source = image;
         });
@@ -45,7 +48,7 @@ public partial class SessionWindow : Window
 
     private void Renderer_FpsUpdated(double fps)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             FpsTextBlock.Text = $"{fps:0.0} FPS";
         });
@@ -60,8 +63,11 @@ public partial class SessionWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
+            if (_isUserClosing) return;
+
             if (state == ControllerState.Disconnected || state == ControllerState.Error)
             {
+                _isUserClosing = true;
                 SessionStatusText.Text = $"Session ended: {message}";
                 MessageBox.Show($"Remote session disconnected: {message}", "RemoteLAN Session", MessageBoxButton.OK, MessageBoxImage.Information);
                 Close();
@@ -198,6 +204,8 @@ public partial class SessionWindow : Window
 
     private void DisconnectBtn_Click(object sender, RoutedEventArgs e)
     {
+        _isUserClosing = true;
+        _client.StateChanged -= Client_StateChanged;
         _client.Disconnect();
         Close();
     }
@@ -214,9 +222,10 @@ public partial class SessionWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _isUserClosing = true;
+        _client.StateChanged -= Client_StateChanged;
+        _client.FrameReceived -= Client_FrameReceived;
         base.OnClosed(e);
         _client.Disconnect();
-        _client.FrameReceived -= Client_FrameReceived;
-        _client.StateChanged -= Client_StateChanged;
     }
 }

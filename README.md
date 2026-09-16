@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)](https://semver.org)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
 
@@ -10,6 +10,7 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Bidirectional Control**: Connect from PC A to PC B, or from PC B to PC A, or simultaneously.
 - **Zero Cloud Relay**: Direct TCP socket connections between machines on your trusted local area network.
 - **Continuous Auto-Discovery**: Automatically discovers active RemoteLAN PCs on your subnet in the background and presents them as interactive squared tiles (AnyDesk-style) without requiring manual scanning.
+- **System Tray Minimization**: Closing the application window (clicking 'X') hides RemoteLAN to the Windows System Tray notification area, keeping the agent server and discovery listening in the background. Right-click the tray icon to access **Open RemoteLAN** or **Exit RemoteLAN**.
 - **Clean Modern Light Mode UI**:
   - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment.
   - **Unattended Access Mode**: Configure a permanent custom password for unattended access without requiring on-screen confirmation.
@@ -17,9 +18,9 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
 - **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
-- **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, and in-app header branding.
+- **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
 - **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.4.0`).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.4.1`).
 
 ---
 
@@ -91,11 +92,14 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v0.4.0.exe`
+`dist/RemoteLAN_Setup_v0.4.1.exe`
 
+- **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required on target PCs.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
+- **Post-Install Launch Option**: Includes a checked option on the final installer page allowing the user to open the application immediately.
 - **Automatic Background Startup**: Configures Windows Run key (`--background`) so the host is immediately reachable on boot without displaying the main window.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
+- **System Tray Integration**: Closing the window hides to the notification tray; right-click tray icon to open or exit.
 - **Connection Alert**: Main window automatically reveals itself upon incoming remote connection.
 
 ### Launching RemoteLAN (Works on Any PC)

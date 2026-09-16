@@ -238,7 +238,7 @@ public sealed class AgentServer : IDisposable
 
             try
             {
-                using var bitmap = _capturer.CaptureFrame();
+                var bitmap = _capturer.CaptureFrame();
                 if (bitmap != null)
                 {
                     byte[] jpegData = _encoder.Encode(bitmap);
@@ -264,10 +264,17 @@ public sealed class AgentServer : IDisposable
             {
                 break;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or SocketException or EndOfStreamException)
             {
+                // Network connection severed by client
                 sessionCts.Cancel();
                 break;
+            }
+            catch (Exception ex)
+            {
+                // Transient capture or encode glitch — do not terminate session
+                Debug.WriteLine($"[AgentServer] Capture glitch: {ex.Message}");
+                await Task.Delay(50, ct).ConfigureAwait(false);
             }
         }
     }
@@ -310,10 +317,15 @@ public sealed class AgentServer : IDisposable
             {
                 break;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or SocketException or EndOfStreamException)
             {
+                // Network connection closed
                 sessionCts.Cancel();
                 break;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AgentServer] Input processing glitch: {ex.Message}");
             }
         }
     }

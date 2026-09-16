@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Windows;
@@ -12,6 +13,8 @@ using RemoteLAN.Protocol.Discovery;
 using RemoteLAN.Protocol.Transport;
 using RemoteLAN.Security;
 using RemoteLAN.Views;
+using WinForms = System.Windows.Forms;
+using Color = System.Windows.Media.Color;
 
 namespace RemoteLAN;
 
@@ -23,6 +26,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<DiscoveredAgent> _discoveredAgents = new();
     private readonly DispatcherTimer _discoveryTimer = new();
     private readonly HashSet<string> _localIpAddresses = new(StringComparer.OrdinalIgnoreCase) { "127.0.0.1", "localhost", "::1" };
+    private WinForms.NotifyIcon? _trayIcon;
+    private bool _isExplicitExit;
+    private bool _hasShownTrayTip;
     private string? _modalTargetIp;
     private int _modalTargetPort;
     private string? _modalTargetDisplayName;
@@ -83,6 +89,9 @@ public partial class MainWindow : Window
 
         // Trigger immediate scan upon application launch
         _ = PerformDiscoveryScanAsync();
+
+        // Initialize system tray notification icon
+        InitializeTrayIcon();
     }
 
     private void LoadLocalIpAddresses()
@@ -176,6 +185,7 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             ShowAndActivate();
+            _trayIcon?.ShowBalloonTip(3000, "RemoteLAN Connection", $"Incoming remote control session from {endpoint}", WinForms.ToolTipIcon.Info);
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
             SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
@@ -834,8 +844,108 @@ public partial class MainWindow : Window
         }
     }
 
+    private void InitializeTrayIcon()
+    {
+        System.Drawing.Icon appIcon;
+        try
+        {
+            var streamInfo = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/icon.ico"));
+            if (streamInfo != null)
+            {
+                using var stream = streamInfo.Stream;
+                appIcon = new System.Drawing.Icon(stream);
+            }
+            else
+            {
+                string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico");
+                appIcon = System.IO.File.Exists(iconPath) ? new System.Drawing.Icon(iconPath) : System.Drawing.SystemIcons.Application;
+            }
+        }
+        catch
+        {
+            appIcon = System.Drawing.SystemIcons.Application;
+        }
+
+        _trayIcon = new WinForms.NotifyIcon
+        {
+            Icon = appIcon,
+            Text = "RemoteLAN — LAN Remote Desktop",
+            Visible = true
+        };
+
+        var contextMenu = new WinForms.ContextMenuStrip();
+
+        var openItem = new WinForms.ToolStripMenuItem("Open RemoteLAN");
+        openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
+        openItem.Click += (s, e) => ShowAndActivate();
+
+        var hostItem = new WinForms.ToolStripMenuItem($"Host: {Environment.MachineName}");
+        hostItem.Enabled = false;
+
+        var exitItem = new WinForms.ToolStripMenuItem("Exit RemoteLAN");
+        exitItem.Click += (s, e) => ExitApplication();
+
+        contextMenu.Items.Add(openItem);
+        contextMenu.Items.Add(new WinForms.ToolStripSeparator());
+        contextMenu.Items.Add(hostItem);
+        contextMenu.Items.Add(new WinForms.ToolStripSeparator());
+        contextMenu.Items.Add(exitItem);
+
+        _trayIcon.ContextMenuStrip = contextMenu;
+
+        _trayIcon.DoubleClick += (s, e) => ShowAndActivate();
+        _trayIcon.Click += (s, e) =>
+        {
+            if (e is WinForms.MouseEventArgs mouseArgs && mouseArgs.Button == WinForms.MouseButtons.Left)
+            {
+                ShowAndActivate();
+            }
+        };
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_isExplicitExit)
+        {
+            e.Cancel = true;
+            Hide();
+            if (!_hasShownTrayTip)
+            {
+                _hasShownTrayTip = true;
+                _trayIcon?.ShowBalloonTip(2000, "RemoteLAN", "RemoteLAN is running in the background.", WinForms.ToolTipIcon.Info);
+            }
+            return;
+        }
+
+        base.OnClosing(e);
+    }
+
+    public void ExitApplication()
+    {
+        _isExplicitExit = true;
+
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _trayIcon = null;
+        }
+
+        _discoveryTimer.Stop();
+        _server.Dispose();
+
+        System.Windows.Application.Current.Shutdown();
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _trayIcon = null;
+        }
+
         _discoveryTimer.Stop();
         _server.Dispose();
         base.OnClosed(e);

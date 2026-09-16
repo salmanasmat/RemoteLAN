@@ -154,4 +154,49 @@ public class EndToEndSessionTests
             agent.Stop();
         }
     }
+
+    [Fact]
+    public async Task EndToEnd_Streaming_MaintainsContinuousFrames()
+    {
+        const int port = 9198;
+        using var agent = new AgentServer(port, jpegQuality: 60, initialPin: "123456");
+        agent.Start();
+
+        try
+        {
+            using var controller = new ControllerClient();
+            int receivedFrameCount = 0;
+            var targetFramesTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            controller.FrameReceived += bytes =>
+            {
+                if (bytes.Length > 0)
+                {
+                    int current = Interlocked.Increment(ref receivedFrameCount);
+                    if (current >= 5)
+                    {
+                        targetFramesTcs.TrySetResult(true);
+                    }
+                }
+            };
+
+            await controller.ConnectAsync("127.0.0.1", port, "123456");
+            Assert.Equal(ControllerState.Connected, controller.State);
+
+            // Wait up to 5 seconds to receive at least 5 frames continuously
+            var completed = await Task.WhenAny(targetFramesTcs.Task, Task.Delay(5000));
+            Assert.Same(targetFramesTcs.Task, completed);
+            Assert.True(receivedFrameCount >= 5, $"Expected at least 5 frames, got {receivedFrameCount}");
+
+            // Verify controller is still in Connected state (did not disconnect after frame 1)
+            Assert.Equal(ControllerState.Connected, controller.State);
+
+            controller.Disconnect();
+            Assert.Equal(ControllerState.Disconnected, controller.State);
+        }
+        finally
+        {
+            agent.Stop();
+        }
+    }
 }

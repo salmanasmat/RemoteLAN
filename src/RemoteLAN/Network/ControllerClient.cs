@@ -122,8 +122,7 @@ public sealed class ControllerClient : IDisposable
         }
         finally
         {
-            Disconnect();
-            SetState(ControllerState.Disconnected, "Disconnected from remote host.");
+            Disconnect("Disconnected from remote host.");
         }
     }
 
@@ -191,7 +190,7 @@ public sealed class ControllerClient : IDisposable
         catch { }
     }
 
-    public void Disconnect()
+    public void Disconnect(string reason = "Disconnected")
     {
         _sessionCts?.Cancel();
         _sessionCts?.Dispose();
@@ -216,7 +215,7 @@ public sealed class ControllerClient : IDisposable
 
         if (State != ControllerState.Disconnected)
         {
-            SetState(ControllerState.Disconnected, "Disconnected");
+            SetState(ControllerState.Disconnected, reason);
         }
     }
 
