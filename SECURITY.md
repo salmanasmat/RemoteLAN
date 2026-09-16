@@ -13,7 +13,7 @@ If you discover a security vulnerability in RemoteLAN, please **do not open a pu
 Please include:
 - A description of the issue and potential impact.
 - Step-by-step reproduction steps or proof of concept.
-- Affected versions (e.g., v0.7.1).
+- Affected versions (e.g., v1.0.0).
 
 We will acknowledge receipt of your report within 48 hours, investigate the issue promptly, and release a patch in accordance with semantic versioning.
 
@@ -22,7 +22,7 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 ## Security Audit Report (OWASP Standards)
 
 - **Audit Date**: March 2026
-- **Audited Target**: RemoteLAN v0.7.1 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
+- **Audited Target**: RemoteLAN v1.0.0 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
 - **Scope**: Full repository security sweep (Secrets, Injection, Authentication/Authorization, Privilege Management, Supply Chain).
 
 ### Executive Summary
