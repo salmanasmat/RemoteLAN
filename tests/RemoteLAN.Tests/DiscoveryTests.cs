@@ -82,4 +82,35 @@ public class DiscoveryTests
             responder.Stop();
         }
     }
+
+    [Fact]
+    public async Task IsHostReachableAsync_ReturnsTrue_WhenPortIsOpen()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+
+        try
+        {
+            bool reachable = await LanDiscoveryClient.IsHostReachableAsync("127.0.0.1", port, timeoutMs: 1500);
+            Assert.True(reachable);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task IsHostReachableAsync_ReturnsFalse_WhenPortIsClosed()
+    {
+        // Bind and immediately close to acquire a definitely-free port
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        int freePort = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        bool reachable = await LanDiscoveryClient.IsHostReachableAsync("127.0.0.1", freePort, timeoutMs: 500);
+        Assert.False(reachable);
+    }
 }

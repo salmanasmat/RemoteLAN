@@ -156,4 +156,23 @@ public sealed class LanDiscoveryClient
         catch { }
         return addresses;
     }
+
+    /// <summary>
+    /// Checks if a remote TCP endpoint is reachable within the specified timeout.
+    /// Used to verify a host is online and listening before prompting for security PINs.
+    /// </summary>
+    public static async Task<bool> IsHostReachableAsync(string host, int port, int timeoutMs = 2500)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            using var cts = new CancellationTokenSource(timeoutMs);
+            await client.ConnectAsync(host, port, cts.Token);
+            return client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

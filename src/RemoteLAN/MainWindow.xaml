@@ -387,9 +387,7 @@
 
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260"/>
-                            <ColumnDefinition Width="14"/>
-                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="340"/>
                             <ColumnDefinition Width="14"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -401,15 +399,8 @@
                                      KeyDown="ConnectionInput_KeyDown"/>
                         </StackPanel>
 
-                        <!-- Remote PIN Field -->
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
-                            <TextBox x:Name="RemotePinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="40"
-                                     FontWeight="SemiBold" KeyDown="ConnectionInput_KeyDown"/>
-                        </StackPanel>
-
                         <!-- Connect Action Button -->
-                        <Button Grid.Column="4" x:Name="ConnectRemoteBtn" Content="Connect ➔" 
+                        <Button Grid.Column="2" x:Name="ConnectRemoteBtn" Content="Connect ➔" 
                                 Style="{StaticResource PrimaryButtonStyle}" Height="40" VerticalAlignment="Bottom"
                                 Click="ConnectRemoteBtn_Click"/>
                     </Grid>
@@ -558,6 +549,8 @@
                         <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="42"
                                  FontSize="18" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
                                  KeyDown="ModalPinTextBox_KeyDown"/>
+                        <CheckBox x:Name="SaveModalPasswordCheckBox" Content="Remember password for this device" 
+                                  IsChecked="True" FontSize="12" FontWeight="Medium" Foreground="#334155" Margin="0,10,0,0" Cursor="Hand"/>
                         <TextBlock Text="Enter the 6-digit security PIN displayed on the remote PC." FontSize="11" Foreground="#94A3B8" Margin="0,5,0,0"/>
                     </StackPanel>
 
@@ -566,15 +559,21 @@
                                HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
 
                     <!-- Row 4: Action Buttons -->
-                    <Grid Grid.Row="4" Margin="0,18,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="ClosePinModal_Click"/>
-                        <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect ➔" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
-                    </Grid>
+                    <StackPanel Grid.Row="4" Margin="0,18,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="ClosePinModal_Click"/>
+                            <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect ➔" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
+                        </Grid>
+                        <Button x:Name="ModalForgetPasswordBtn" Content="Forget saved password" 
+                                Background="Transparent" BorderThickness="0" Foreground="#DC2626" FontSize="11" FontWeight="Medium"
+                                Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="Collapsed"
+                                Click="ModalForgetPasswordBtn_Click"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

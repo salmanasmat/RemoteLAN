@@ -10,18 +10,22 @@ using RemoteLAN.Discovery;
 using RemoteLAN.Network;
 using RemoteLAN.Protocol.Discovery;
 using RemoteLAN.Protocol.Transport;
+using RemoteLAN.Security;
 using RemoteLAN.Views;
 
 namespace RemoteLAN;
 
 public partial class MainWindow : Window
 {
+    private readonly SettingsManager _settingsManager = new();
     private readonly AgentServer _server;
     private readonly LanDiscoveryClient _discoveryClient = new();
     private readonly ObservableCollection<DiscoveredAgent> _discoveredAgents = new();
     private readonly DispatcherTimer _discoveryTimer = new();
     private readonly HashSet<string> _localIpAddresses = new(StringComparer.OrdinalIgnoreCase) { "127.0.0.1", "localhost", "::1" };
-    private DiscoveredAgent? _modalTargetAgent;
+    private string? _modalTargetIp;
+    private int _modalTargetPort;
+    private string? _modalTargetDisplayName;
     private bool _isScanning;
 
     private sealed class NetworkAddressItem
@@ -39,8 +43,16 @@ public partial class MainWindow : Window
 
         HostDeviceNameText.Text = Environment.MachineName;
 
-        // Initialize and start background host server (always ready for incoming connections)
-        _server = new AgentServer(ProtocolConstants.DefaultPort);
+        // Load persistent host PIN if previously saved, otherwise AgentServer generates one and saves it
+        string? savedHostPin = _settingsManager.GetHostPin();
+        _server = new AgentServer(ProtocolConstants.DefaultPort, initialPin: savedHostPin);
+
+        // If this is the first run and a PIN was newly generated, persist it
+        if (string.IsNullOrWhiteSpace(savedHostPin))
+        {
+            _settingsManager.SaveHostPin(_server.PinManager.CurrentPin);
+        }
+
         _server.StatusChanged += Server_StatusChanged;
         _server.ClientConnected += Server_ClientConnected;
         _server.ClientDisconnected += Server_ClientDisconnected;
@@ -121,6 +133,7 @@ public partial class MainWindow : Window
 
     private void PinManager_PinChanged(string pin)
     {
+        _settingsManager.SaveHostPin(pin);
         UpdatePinDisplay(pin);
     }
 
@@ -268,42 +281,78 @@ public partial class MainWindow : Window
 
     // =========================================================================
     // DISCOVERED CARD SELECTION / CONNECTION LOGIC
-    // Top inputs are NOT modified when connecting via discovered cards.
-    // Instead, a dedicated PIN popup is displayed.
+    // If a saved password exists, connect immediately without entering PIN!
+    // Otherwise, open the PIN popup modal.
     // =========================================================================
 
-    private void DiscoveredPcsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void DiscoveredPcsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DiscoveredPcsListBox.SelectedItem is DiscoveredAgent agent)
         {
             DiscoveredPcsListBox.SelectedItem = null;
-            OpenPinModalForAgent(agent);
+            await HandleAgentCardClickAsync(agent);
         }
     }
 
     private void DiscoveredPcsListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // Double-click is handled by SelectionChanged or CardConnectBtn_Click
+        // Handled via selection or card click
     }
 
-    private void CardConnectBtn_Click(object sender, RoutedEventArgs e)
+    private async void CardConnectBtn_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
         {
-            OpenPinModalForAgent(agent);
+            await HandleAgentCardClickAsync(agent);
         }
     }
 
-    private void OpenPinModalForAgent(DiscoveredAgent agent)
+    private async Task HandleAgentCardClickAsync(DiscoveredAgent agent)
     {
-        _modalTargetAgent = agent;
-        ModalDeviceNameText.Text = agent.MachineName;
-        ModalDeviceIpText.Text = agent.IpAddress;
+        // Check if we already have a saved password for this device
+        if (_settingsManager.TryGetPassword(agent.MachineName, agent.IpAddress, out string savedPassword) && !string.IsNullOrWhiteSpace(savedPassword))
+        {
+            SetStatus($"Connecting to {agent.MachineName} (using saved password)...", Color.FromRgb(59, 130, 246));
+            var (success, _) = await ConnectWithCredentialsAsync(agent.IpAddress, agent.Port, savedPassword, agent.MachineName);
+
+            if (!success)
+            {
+                // Saved password failed (e.g. host changed its PIN) -> open PIN modal prompting for new PIN
+                OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName, fallbackFromFailedSavedPassword: true);
+            }
+        }
+        else
+        {
+            OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName);
+        }
+    }
+
+    private void OpenPinModal(string ip, int port, string displayName, bool fallbackFromFailedSavedPassword = false)
+    {
+        _modalTargetIp = ip;
+        _modalTargetPort = port;
+        _modalTargetDisplayName = displayName;
+
+        ModalDeviceNameText.Text = displayName;
+        ModalDeviceIpText.Text = port == ProtocolConstants.DefaultPort ? ip : $"{ip}:{port}";
         ModalPinTextBox.Text = string.Empty;
-        ModalStatusText.Visibility = Visibility.Collapsed;
-        ModalStatusText.Text = string.Empty;
         ModalConnectBtn.IsEnabled = true;
 
+        bool hasSaved = _settingsManager.HasSavedPassword(displayName, ip);
+        ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
+
+        if (fallbackFromFailedSavedPassword)
+        {
+            ModalStatusText.Text = "Saved PIN was rejected. Please enter the current PIN:";
+            ModalStatusText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ModalStatusText.Visibility = Visibility.Collapsed;
+            ModalStatusText.Text = string.Empty;
+        }
+
+        SaveModalPasswordCheckBox.IsChecked = true;
         PinModalOverlay.Visibility = Visibility.Visible;
         ModalPinTextBox.Focus();
     }
@@ -311,7 +360,19 @@ public partial class MainWindow : Window
     private void ClosePinModal_Click(object sender, RoutedEventArgs e)
     {
         PinModalOverlay.Visibility = Visibility.Collapsed;
-        _modalTargetAgent = null;
+        _modalTargetIp = null;
+        _modalTargetDisplayName = null;
+    }
+
+    private void ModalForgetPasswordBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_modalTargetIp))
+        {
+            _settingsManager.RemovePassword(_modalTargetDisplayName, _modalTargetIp);
+            ModalForgetPasswordBtn.Visibility = Visibility.Collapsed;
+            ModalStatusText.Text = "Saved password removed.";
+            ModalStatusText.Visibility = Visibility.Visible;
+        }
     }
 
     private void PinModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
@@ -346,7 +407,7 @@ public partial class MainWindow : Window
 
     private async void ModalConnectBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_modalTargetAgent == null) return;
+        if (string.IsNullOrWhiteSpace(_modalTargetIp)) return;
 
         string pin = ModalPinTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(pin))
@@ -359,10 +420,48 @@ public partial class MainWindow : Window
 
         ModalConnectBtn.IsEnabled = false;
         ModalStatusText.Visibility = Visibility.Collapsed;
-        SetStatus($"Connecting to {_modalTargetAgent.MachineName}...", Color.FromRgb(59, 130, 246));
+
+        string ip = _modalTargetIp;
+        int port = _modalTargetPort;
+        string displayName = _modalTargetDisplayName ?? ip;
+
+        bool remember = SaveModalPasswordCheckBox.IsChecked == true;
+        var (connected, errorMsg) = await ConnectWithCredentialsAsync(ip, port, pin, displayName);
+
+        if (connected)
+        {
+            if (remember)
+            {
+                _settingsManager.SavePassword(displayName, ip, pin);
+            }
+            PinModalOverlay.Visibility = Visibility.Collapsed;
+            _modalTargetIp = null;
+            _modalTargetDisplayName = null;
+        }
+        else
+        {
+            if (errorMsg != null && errorMsg.Contains("Authentication", StringComparison.OrdinalIgnoreCase))
+            {
+                ModalStatusText.Text = "Incorrect security PIN. Please check the PIN on the remote PC.";
+            }
+            else
+            {
+                ModalStatusText.Text = "Could not connect. Check PIN or ensure RemoteLAN is running.";
+            }
+            ModalStatusText.Visibility = Visibility.Visible;
+            ModalConnectBtn.IsEnabled = true;
+            ModalPinTextBox.Focus();
+            ModalPinTextBox.SelectAll();
+        }
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> ConnectWithCredentialsAsync(string ip, int port, string pin, string displayName)
+    {
+        SetStatus($"Connecting to {displayName}...", Color.FromRgb(59, 130, 246));
 
         var client = new ControllerClient();
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        string? failureReason = null;
 
         void StateHandler(ControllerState state, string message)
         {
@@ -372,15 +471,12 @@ public partial class MainWindow : Window
             }
             else if (state == ControllerState.Error || state == ControllerState.Disconnected)
             {
+                failureReason = message;
                 tcs.TrySetResult(false);
             }
         }
 
         client.StateChanged += StateHandler;
-
-        string ip = _modalTargetAgent.IpAddress;
-        int port = _modalTargetAgent.Port;
-        string machineName = _modalTargetAgent.MachineName;
 
         try
         {
@@ -391,30 +487,27 @@ public partial class MainWindow : Window
 
             if (connected)
             {
-                SetStatus($"Connected to {machineName}", Color.FromRgb(16, 185, 129));
-                PinModalOverlay.Visibility = Visibility.Collapsed;
-
-                var sessionWin = new SessionWindow(client, machineName, $"{ip}:{port}");
+                SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129));
+                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}");
                 sessionWin.Show();
                 SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+                return (true, null);
             }
             else
             {
                 SetStatus("Connection failed", Color.FromRgb(239, 68, 68));
-                ModalStatusText.Text = "Could not connect. Check PIN or ensure RemoteLAN is running.";
-                ModalStatusText.Visibility = Visibility.Visible;
                 client.Dispose();
-                ModalConnectBtn.IsEnabled = true;
+                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+                return (false, failureReason);
             }
         }
         catch (Exception ex)
         {
             client.StateChanged -= StateHandler;
             SetStatus($"Error: {ex.Message}", Color.FromRgb(239, 68, 68));
-            ModalStatusText.Text = $"Connection error: {ex.Message}";
-            ModalStatusText.Visibility = Visibility.Visible;
             client.Dispose();
-            ModalConnectBtn.IsEnabled = true;
+            SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+            return (false, ex.Message);
         }
     }
 
@@ -436,12 +529,16 @@ public partial class MainWindow : Window
         ConnectionStatusDot.Background = new SolidColorBrush(dotColor);
     }
 
+    private static Task<bool> IsHostReachableAsync(string ip, int port, int timeoutMs = 2500)
+        => LanDiscoveryClient.IsHostReachableAsync(ip, port, timeoutMs);
+
     private async void ConnectRemoteBtn_Click(object sender, RoutedEventArgs e)
     {
         string rawAddress = TargetIpTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(rawAddress))
         {
             MessageBox.Show("Please enter the remote PC's IP address or select a discovered device.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            TargetIpTextBox.Focus();
             return;
         }
 
@@ -459,65 +556,52 @@ public partial class MainWindow : Window
             }
         }
 
-        string pin = RemotePinTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(pin))
-        {
-            MessageBox.Show("Please enter the remote PC's Security PIN.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-            RemotePinTextBox.Focus();
-            return;
-        }
+        string displayName = _discoveredAgents.FirstOrDefault(a => a.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase))?.MachineName ?? ip;
 
         ConnectRemoteBtn.IsEnabled = false;
-        SetStatus($"Connecting to {ip}...", Color.FromRgb(59, 130, 246)); // Blue
-
-        var client = new ControllerClient();
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        void StateHandler(ControllerState state, string message)
-        {
-            if (state == ControllerState.Connected)
-            {
-                tcs.TrySetResult(true);
-            }
-            else if (state == ControllerState.Error || state == ControllerState.Disconnected)
-            {
-                tcs.TrySetResult(false);
-            }
-        }
-
-        client.StateChanged += StateHandler;
+        SetStatus($"Checking connection to {ip}...", Color.FromRgb(59, 130, 246));
 
         try
         {
-            await client.ConnectAsync(ip, port, pin);
-            bool connected = await tcs.Task;
+            // Reachability check: verify device is responding before asking for PIN
+            bool isDiscovered = _discoveredAgents.Any(a => a.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase) && a.Port == port);
+            bool isReachable = isDiscovered || await IsHostReachableAsync(ip, port);
 
-            client.StateChanged -= StateHandler;
-
-            if (connected)
+            if (!isReachable)
             {
-                string displayName = _discoveredAgents.FirstOrDefault(a => a.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase))?.MachineName ?? ip;
-                SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129)); // Green
+                SetStatus("Host unreachable", Color.FromRgb(239, 68, 68));
+                MessageBox.Show(
+                    $"Unable to reach {ip}{(port != ProtocolConstants.DefaultPort ? $":{port}" : "")}.\n\nPlease ensure RemoteLAN is running on the target PC and both devices are connected to the same network.",
+                    "Device Unreachable",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+                return;
+            }
 
-                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}");
-                sessionWin.Show();
-                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
-            }
-            else
+            // If a saved password exists for this device, attempt 1-click connection
+            if (_settingsManager.TryGetPassword(displayName, ip, out string savedPassword) && !string.IsNullOrWhiteSpace(savedPassword))
             {
-                SetStatus("Connection failed", Color.FromRgb(239, 68, 68)); // Red
-                MessageBox.Show($"Could not connect to {ip}. Please check that RemoteLAN is active on that machine and the Security PIN is correct.", "Connection Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                client.Dispose();
-                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+                if (!isDiscovered)
+                {
+                    await Task.Delay(100);
+                }
+
+                SetStatus($"Connecting to {displayName} (using saved password)...", Color.FromRgb(59, 130, 246));
+                var (connected, _) = await ConnectWithCredentialsAsync(ip, port, savedPassword, displayName);
+                if (connected)
+                {
+                    return;
+                }
+
+                // If saved password failed (e.g. host changed its PIN), prompt for new PIN
+                OpenPinModal(ip, port, displayName, fallbackFromFailedSavedPassword: true);
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            client.StateChanged -= StateHandler;
-            SetStatus($"Error: {ex.Message}", Color.FromRgb(239, 68, 68)); // Red
-            MessageBox.Show($"Connection error: {ex.Message}", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            client.Dispose();
+
+            // Device is reachable and no saved password exists -> prompt for security PIN
             SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+            OpenPinModal(ip, port, displayName);
         }
         finally
         {

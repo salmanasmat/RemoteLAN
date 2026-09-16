@@ -12,11 +12,11 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Continuous Auto-Discovery**: Automatically discovers active RemoteLAN PCs on your subnet in the background and presents them as interactive squared tiles (AnyDesk-style) without requiring manual scanning.
 - **Clean Modern Light Mode UI**:
   - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and 6-digit security PIN with one-click copy and regeneration.
-  - **Top Horizontal Header**: Seamless remote address and PIN inputs with immediate connect action.
-  - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click or double-click to connect.
+  - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
+  - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
 - **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
-- **PIN Handshake Security**: Lightweight 6-digit PIN authentication handshake before streaming or control begins.
+- **PIN Handshake Security & Saved Passwords**: Lightweight 6-digit PIN authentication with optional saved credentials ("Remember password for this device") for 1-click instant connection, plus reachability verification and persistent host PIN across app restarts.
 - **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.3.0`).
 
 ---
@@ -30,7 +30,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (27 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (32 tests)
 ```
 
 ### Network Protocols
@@ -94,7 +94,9 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
    - The left sidebar displays PC B's IP address and its own 6-digit security PIN.
 3. **To connect PC A → PC B**:
    - On PC A, PC B automatically appears as a square device tile in the discovered devices grid.
-   - Click PC B's tile (which automatically fills the top remote address), enter PC B's PIN, and click **Connect ➔**.
+   - Click PC B's tile (or enter PC B's IP in the top header and click **Connect ➔**).
+   - RemoteLAN automatically tests reachability. If reachable, it presents the PIN prompt modal with a **"Remember password for this device"** toggle (or connects instantly if already remembered).
+   - Enter PC B's 6-digit PIN and click **Connect ➔**.
    - A dedicated remote desktop session window opens with full mouse and keyboard control!
 4. **To connect PC B → PC A**:
    - Exact same process in reverse!
