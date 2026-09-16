@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://semver.org)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
 
@@ -21,7 +21,7 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
 - **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.4.1`).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.5.0`).
 
 ---
 
@@ -93,11 +93,11 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v0.4.1.exe`
+`dist/RemoteLAN_Setup_v0.5.0.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required on target PCs.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
-- **Post-Install Launch Option**: Includes a checked option on the final installer page allowing the user to open the application immediately.
+- **Post-Install Launch Option**: Includes an unchecked option on the final installer page to launch only if explicitly selected by the user.
 - **Automatic Background Startup**: Configures Windows Run key (`--background`) so the host is immediately reachable on boot without displaying the main window.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
 - **System Tray Integration**: Closing the window hides to the notification tray; right-click tray icon to open or exit.

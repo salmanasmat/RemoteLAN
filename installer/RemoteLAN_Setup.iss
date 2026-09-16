@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "0.4.1"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "RemoteLAN Team"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -52,7 +52,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --background"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: unchecked nowait postinstall skipifsilent
 
 [Code]
 // Forcefully terminate any running instance of RemoteLAN

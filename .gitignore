@@ -44,4 +44,6 @@ project.lock.json
 project.assets.json
 Screenshot*.png
 Screenshot (*).png
-*.png
+!src/RemoteLAN/*.png
+!cards.png
+cards.png
