@@ -19,6 +19,7 @@ public sealed class SettingsManager
         public bool BlockUnauthorizedAttempts { get; set; } = true;
         public int MaxFailedAuthAttempts { get; set; } = 5;
         public int LockoutDurationMinutes { get; set; } = 10;
+        public int PinRotationIntervalMinutes { get; set; } = 0; // 0 = Never (Default)
 
         // General application preferences
         public bool StartMinimizedToTray { get; set; } = false;
@@ -103,6 +104,12 @@ public sealed class SettingsManager
     {
         get { lock (_lock) return _data.LockoutDurationMinutes; }
         set { lock (_lock) { _data.LockoutDurationMinutes = Math.Max(1, value); SaveLocked(); } }
+    }
+
+    public int PinRotationIntervalMinutes
+    {
+        get { lock (_lock) return _data.PinRotationIntervalMinutes; }
+        set { lock (_lock) { _data.PinRotationIntervalMinutes = Math.Max(0, value); SaveLocked(); } }
     }
 
     public bool StartMinimizedToTray

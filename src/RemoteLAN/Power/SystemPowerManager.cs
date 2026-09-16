@@ -91,10 +91,16 @@ public static class SystemPowerManager
             var psi = new ProcessStartInfo
             {
                 FileName = "shutdown.exe",
-                Arguments = $"/r /t {delaySeconds} /f /c \"{reason}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false
             };
+            psi.ArgumentList.Add("/r");
+            psi.ArgumentList.Add("/t");
+            psi.ArgumentList.Add(Math.Max(0, delaySeconds).ToString());
+            psi.ArgumentList.Add("/f");
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add(reason);
+
             using var proc = Process.Start(psi);
             return true;
         }
@@ -111,10 +117,16 @@ public static class SystemPowerManager
             var psi = new ProcessStartInfo
             {
                 FileName = "shutdown.exe",
-                Arguments = $"/s /t {delaySeconds} /f /c \"{reason}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false
             };
+            psi.ArgumentList.Add("/s");
+            psi.ArgumentList.Add("/t");
+            psi.ArgumentList.Add(Math.Max(0, delaySeconds).ToString());
+            psi.ArgumentList.Add("/f");
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add(reason);
+
             using var proc = Process.Start(psi);
             return true;
         }

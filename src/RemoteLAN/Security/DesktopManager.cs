@@ -151,6 +151,38 @@ public static class DesktopManager
                name.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
     }
 
+    public sealed class ImpersonationScope : IDisposable
+    {
+        private bool _disposed;
+        private readonly bool _wasImpersonated;
+
+        public ImpersonationScope()
+        {
+            if (IsAdministrator)
+            {
+                _wasImpersonated = TryImpersonateSystem();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                if (_wasImpersonated)
+                {
+                    try
+                    {
+                        RevertToSelf();
+                    }
+                    catch { }
+                }
+            }
+        }
+    }
+
+    public static IDisposable ImpersonateSystemScope() => new ImpersonationScope();
+
     private static IntPtr OpenCurrentInputDesktop()
     {
         // 1. Try standard OpenInputDesktop
@@ -160,7 +192,7 @@ public static class DesktopManager
         int err = Marshal.GetLastWin32Error();
         if (err == 5 /* ERROR_ACCESS_DENIED */ && IsAdministrator)
         {
-            // 2. Try elevating thread token to SYSTEM via Winlogon token duplication
+            // 2. Elevate thread token to SYSTEM via Winlogon token duplication
             if (TryImpersonateSystem())
             {
                 try
@@ -185,7 +217,14 @@ public static class DesktopManager
     public static bool EnsureThreadOnInputDesktop(out string currentDesktopName)
     {
         currentDesktopName = GetCurrentThreadDesktopName();
-        IntPtr hInputDesk = OpenCurrentInputDesktop();
+        using var scope = ImpersonateSystemScope();
+
+        IntPtr hInputDesk = OpenInputDesktop(0, false, DESKTOP_ALL);
+        if (hInputDesk == IntPtr.Zero)
+        {
+            hInputDesk = OpenDesktop("Winlogon", 0, false, DESKTOP_ALL);
+        }
+
         if (hInputDesk == IntPtr.Zero)
         {
             return false;
@@ -202,6 +241,7 @@ public static class DesktopManager
             if (!inputName.Equals(currentDesktopName, StringComparison.OrdinalIgnoreCase))
             {
                 // Active desktop has changed! Switch current thread to the input desktop
+                // while still maintaining SYSTEM impersonation if available.
                 bool switched = SetThreadDesktop(hInputDesk);
                 if (switched)
                 {
@@ -350,11 +390,14 @@ public static class DesktopManager
 
         // 3. Dismiss lock screen wallpaper & wake password prompt:
         // Simulate Space / Enter key to slide up Windows lock screen wallpaper
-        var injector = new InputInjector();
-        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
-        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Up, false);
-        Thread.Sleep(50);
-        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
-        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
+        using (var injector = new InputInjector())
+        {
+            injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
+            injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Up, false);
+            Thread.Sleep(100);
+            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
+            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
+            Thread.Sleep(100);
+        }
     }
 }

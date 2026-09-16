@@ -72,6 +72,12 @@ public partial class MainWindow : Window
         _server.ClientDisconnected += Server_ClientDisconnected;
         _server.PinManager.PinChanged += PinManager_PinChanged;
 
+        int rotationMinutes = _settingsManager.PinRotationIntervalMinutes;
+        if (rotationMinutes > 0)
+        {
+            _server.PinManager.SetRotationInterval(rotationMinutes);
+        }
+
         UpdatePinDisplay(_server.PinManager.CurrentPin);
         LoadLocalIpAddresses();
 

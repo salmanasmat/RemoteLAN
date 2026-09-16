@@ -14,6 +14,8 @@ public partial class SessionWindow : Window
     private readonly ControllerClient _client;
     private readonly FrameRenderer _renderer;
     private readonly Stopwatch _mouseThrottleStopwatch = Stopwatch.StartNew();
+    private readonly HashSet<int> _activePressedKeys = new();
+    private readonly HashSet<MouseButtonType> _activePressedButtons = new();
     private Point _lastSentMousePos = new(-1, -1);
     private bool _isFullscreen;
 
@@ -34,6 +36,9 @@ public partial class SessionWindow : Window
 
         ResolutionTextBlock.Text = $"{_client.RemoteScreenWidth}x{_client.RemoteScreenHeight}";
         ViewportContainer.Focus();
+
+        Deactivated += async (s, e) => await ReleaseActiveInputsAsync();
+        ViewportContainer.LostFocus += async (s, e) => await ReleaseActiveInputsAsync();
     }
 
     private bool _isUserClosing;
@@ -124,6 +129,9 @@ public partial class SessionWindow : Window
 
         if (button.HasValue)
         {
+            ScreenViewport.CaptureMouse();
+            _activePressedButtons.Add(button.Value);
+
             Point pos = e.GetPosition(ScreenViewport);
             var (inBounds, normX, normY) = CoordinateTranslator.TranslateToNormalized(
                 pos,
@@ -144,6 +152,8 @@ public partial class SessionWindow : Window
     {
         if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
 
+        ScreenViewport.ReleaseMouseCapture();
+
         MouseButtonType? button = e.ChangedButton switch
         {
             MouseButton.Left => MouseButtonType.Left,
@@ -154,6 +164,7 @@ public partial class SessionWindow : Window
 
         if (button.HasValue)
         {
+            _activePressedButtons.Remove(button.Value);
             await _client.SendMouseButtonAsync(button.Value, MouseButtonAction.Up);
         }
     }
@@ -169,11 +180,15 @@ public partial class SessionWindow : Window
     {
         if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
 
+        // Ignore auto-repeat to prevent flood of duplicate key downs
+        if (e.IsRepeat) return;
+
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
         int vk = KeyInterop.VirtualKeyFromKey(key);
         if (vk > 0)
         {
             bool isExtended = IsExtendedKey(key);
+            _activePressedKeys.Add(vk);
             await _client.SendKeyboardKeyAsync(vk, KeyAction.Down, isExtended);
             e.Handled = true;
         }
@@ -188,6 +203,7 @@ public partial class SessionWindow : Window
         if (vk > 0)
         {
             bool isExtended = IsExtendedKey(key);
+            _activePressedKeys.Remove(vk);
             await _client.SendKeyboardKeyAsync(vk, KeyAction.Up, isExtended);
             e.Handled = true;
         }
@@ -322,10 +338,40 @@ public partial class SessionWindow : Window
         }
     }
 
-    private void DisconnectBtn_Click(object sender, RoutedEventArgs e)
+    private async Task ReleaseActiveInputsAsync()
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        try
+        {
+            if (_activePressedButtons.Count > 0)
+            {
+                var buttons = _activePressedButtons.ToArray();
+                _activePressedButtons.Clear();
+                foreach (var btn in buttons)
+                {
+                    await _client.SendMouseButtonAsync(btn, MouseButtonAction.Up);
+                }
+            }
+
+            if (_activePressedKeys.Count > 0)
+            {
+                var keys = _activePressedKeys.ToArray();
+                _activePressedKeys.Clear();
+                foreach (int vk in keys)
+                {
+                    await _client.SendKeyboardKeyAsync(vk, KeyAction.Up, false);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async void DisconnectBtn_Click(object sender, RoutedEventArgs e)
     {
         _isUserClosing = true;
         _client.StateChanged -= Client_StateChanged;
+        await ReleaseActiveInputsAsync();
         _client.Disconnect();
         Close();
     }
@@ -345,6 +391,7 @@ public partial class SessionWindow : Window
         _isUserClosing = true;
         _client.StateChanged -= Client_StateChanged;
         _client.FrameReceived -= Client_FrameReceived;
+        _ = ReleaseActiveInputsAsync();
         base.OnClosed(e);
         _client.Disconnect();
     }

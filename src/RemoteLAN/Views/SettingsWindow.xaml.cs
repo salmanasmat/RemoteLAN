@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         bool unattended = _pinManager.UnattendedAccessEnabled;
         EnableUnattendedCheckBox.IsChecked = unattended;
         UnattendedCredentialsArea.IsEnabled = unattended;
+        UnattendedCredentialsArea.Visibility = unattended ? Visibility.Visible : Visibility.Collapsed;
 
         string? existingPassword = _pinManager.UnattendedPassword;
         if (!string.IsNullOrEmpty(existingPassword))
@@ -81,7 +82,20 @@ public partial class SettingsWindow : Window
 
         UpdateLockoutCount();
 
-        // 3. General & System
+        // 3. Security PIN Auto-Rotation
+        int rotationMinutes = _settingsManager.PinRotationIntervalMinutes;
+        PinRotationComboBox.SelectedIndex = rotationMinutes switch
+        {
+            15 => 1,
+            30 => 2,
+            60 => 3,
+            240 => 4,
+            480 => 5,
+            1440 => 6,
+            _ => 0 // Never
+        };
+
+        // 4. General & System
         StartWithWindowsCheckBox.IsChecked = StartupHelper.IsRunAtStartupEnabled();
         MinimizeOnCloseCheckBox.IsChecked = _settingsManager.MinimizeToTrayOnClose;
         StartMinimizedCheckBox.IsChecked = _settingsManager.StartMinimizedToTray;
@@ -133,6 +147,7 @@ public partial class SettingsWindow : Window
 
         bool enabled = EnableUnattendedCheckBox.IsChecked == true;
         UnattendedCredentialsArea.IsEnabled = enabled;
+        UnattendedCredentialsArea.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
 
         string currentPassword = _isPasswordVisible 
             ? UnattendedPasswordTextBox.Text 
@@ -253,6 +268,25 @@ public partial class SettingsWindow : Window
         };
 
         _settingsManager.LockoutDurationMinutes = minutes;
+    }
+
+    private void PinRotationComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+
+        int minutes = PinRotationComboBox.SelectedIndex switch
+        {
+            1 => 15,
+            2 => 30,
+            3 => 60,
+            4 => 240,
+            5 => 480,
+            6 => 1440,
+            _ => 0 // Never
+        };
+
+        _settingsManager.PinRotationIntervalMinutes = minutes;
+        _pinManager.SetRotationInterval(minutes);
     }
 
     private void ClearLockoutsBtn_Click(object sender, RoutedEventArgs e)

@@ -61,6 +61,11 @@ internal static class NativeMethods
         public UIntPtr dwExtraInfo;
     }
 
+    public const uint MAPVK_VK_TO_VSC = 0;
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
 }

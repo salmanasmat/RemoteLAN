@@ -11,7 +11,8 @@ public class EndToEndSessionTests
     [Fact]
     public async Task EndToEnd_Authentication_Success_And_Streaming()
     {
-        using var agent = new AgentServer(TestPort, jpegQuality: 60, initialPin: "654321");
+        var testInjector = new TestInputInjector();
+        using var agent = new AgentServer(TestPort, jpegQuality: 60, initialPin: "654321", inputInjector: testInjector);
         agent.Start();
 
         try
@@ -39,6 +40,15 @@ public class EndToEndSessionTests
             Assert.NotNull(frameBytes);
             Assert.True(frameBytes.Length > 0);
 
+            var keyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            testInjector.KeyInjected += key =>
+            {
+                if (key.VirtualKeyCode == 0x41 && key.Action == KeyAction.Up)
+                {
+                    keyTcs.TrySetResult(true);
+                }
+            };
+
             // Send inputs (Mouse move, button, key)
             await controller.SendMouseMoveAsync(0.5, 0.5);
             await controller.SendMouseButtonAsync(MouseButtonType.Left, MouseButtonAction.Down);
@@ -46,6 +56,17 @@ public class EndToEndSessionTests
             await controller.SendMouseWheelAsync(120);
             await controller.SendKeyboardKeyAsync(0x41, KeyAction.Down, false);
             await controller.SendKeyboardKeyAsync(0x41, KeyAction.Up, false);
+
+            var keyCompleted = await Task.WhenAny(keyTcs.Task, Task.Delay(3000));
+            Assert.Same(keyTcs.Task, keyCompleted);
+
+            // Verify inputs reached test injector without modifying real host desktop
+            Assert.Contains(testInjector.MouseMoves, m => Math.Abs(m.X - 0.5) < 0.001 && Math.Abs(m.Y - 0.5) < 0.001);
+            Assert.Contains(testInjector.MouseButtons, b => b.Button == MouseButtonType.Left && b.Action == MouseButtonAction.Down);
+            Assert.Contains(testInjector.MouseButtons, b => b.Button == MouseButtonType.Left && b.Action == MouseButtonAction.Up);
+            Assert.Contains(testInjector.MouseWheels, w => w == 120);
+            Assert.Contains(testInjector.Keys, k => k.VirtualKeyCode == 0x41 && k.Action == KeyAction.Down);
+            Assert.Contains(testInjector.Keys, k => k.VirtualKeyCode == 0x41 && k.Action == KeyAction.Up);
 
             // Disconnect
             controller.Disconnect();

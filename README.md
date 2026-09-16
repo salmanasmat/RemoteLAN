@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.7.1-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
@@ -16,18 +16,20 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment, with a quick-access Settings button.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
-- **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully attaches to the active Windows input desktop (`Winlogon`), captures the actual lock screen and password login screen, and forwards remote keystrokes directly into Windows Logon so users can enter their password and log in remotely just like AnyDesk and RustDesk.
-- **Send Ctrl+Alt+Del / Wake Remote Host**: Dedicated one-click "Ctrl+Alt+Del" toolbar button in the remote session viewer to wake the remote lock screen wallpaper and reveal the Windows sign-in credentials prompt.
+- **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully attaches to the active Windows input desktop (`Winlogon`), captures the actual lock screen and password login screen, and forwards remote keystrokes with hardware scan code translation (`MapVirtualKey`) directly into Windows Logon so users can enter their password and log in remotely just like AnyDesk and RustDesk (requires Administrator privileges on the host PC).
+- **Send Ctrl+Alt+Del / Wake Remote Host**: Dedicated one-click "Ctrl+Alt+Del" toolbar button in the remote session viewer to wake the remote lock screen wallpaper, dismiss the lock curtain, and reveal the Windows sign-in credentials prompt.
 - **Natural Mouse Pointer & Dynamic Resolution**: Standard mouse arrow pointer in the remote desktop viewport (eliminating awkward `+` crosshair cursors), with live dynamic resolution adaptation and normalized coordinate translation across display mode changes.
-- **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling, fully synchronized with the active input desktop.
+- **Resilient Input State Management & Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling, thread-safe key and mouse button state tracking, duplicate `KeyDown` suppression, automatic focus-loss release, and guaranteed session reset cleanup on disconnect, prevent any phantom keystrokes or stuck buttons.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, system tray, and in-app header branding.
 - **Remote Power Actions**: Dedicated `⚡ Power` dropdown toolbar in the session viewer allowing the controller to execute remote **Lock Workstation**, **Sleep / Suspend**, **Restart PC...**, and **Shutdown PC...** with safety confirmation dialogs to prevent accidental disruption.
 - **Dedicated Settings & Security Interface**: Comprehensive, modern Light Mode settings window accessible via the `⚙️ Settings` button in the left sidebar or system tray context menu:
-  - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs.
+  - **Security PIN Auto-Rotation**: Configurable automatic generation of a fresh host PIN after a specified time interval (Never by default, 15m, 30m, 1h, 4h, 8h, 24h). Active sessions remain uninterrupted.
+  - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
+  - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and active lockout inspection.
   - **General & System Preferences**: Windows auto-startup configuration (registry `Run` key), minimize to tray on close, and startup minimization preferences.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v0.7.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**, [salmanasmat.com](https://salmanasmat.com), `hello@salmanasmat.com`).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.7.0`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v0.7.1, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**, [salmanasmat.com](https://salmanasmat.com), `hello@salmanasmat.com`).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.7.1`).
 
 ---
 
@@ -40,7 +42,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, and lock recovery test suite (56 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (73 tests)
 ```
 
 ### Network Protocols
@@ -101,7 +103,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v0.7.0.exe`
+`dist/RemoteLAN_Setup_v0.7.1.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required on target PCs.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
@@ -132,3 +134,10 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
    - A dedicated remote desktop session window opens with full mouse and keyboard control!
 4. **To connect PC B → PC A**:
    - Exact same process in reverse!
+
+---
+
+## Security
+
+RemoteLAN adheres to strict security standards including constant-time authentication verification (`CryptographicOperations.FixedTimeEquals`), automated brute-force IP lockouts, command-injection-proof argument formatting, and RAII-scoped privilege impersonation. For full details on our OWASP security audit findings and vulnerability reporting policy, refer to [SECURITY.md](SECURITY.md).
+

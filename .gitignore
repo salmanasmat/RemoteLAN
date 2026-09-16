@@ -22,6 +22,8 @@ TestResults/
 *.cache
 *.opendb
 *.dbmdl
+.env
+.env.*
 
 ## Python scripts & cache
 __pycache__/

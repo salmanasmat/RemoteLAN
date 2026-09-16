@@ -19,7 +19,7 @@ public sealed class AgentServer : IDisposable
     private readonly PinManager _pinManager;
     private readonly IScreenCapturer _capturer;
     private readonly JpegFrameEncoder _encoder;
-    private readonly InputInjector _inputInjector;
+    private readonly IInputInjector _inputInjector;
     private readonly NetworkFrameWriter _writer;
     private readonly AgentDiscoveryResponder _discoveryResponder;
 
@@ -28,6 +28,7 @@ public sealed class AgentServer : IDisposable
     private Task? _listenerTask;
     private TcpClient? _currentClient;
     private readonly object _clientLock = new();
+    private int _sessionGeneration;
 
     public int Port => _port;
     public SettingsManager? SettingsManager => _settingsManager;
@@ -52,14 +53,15 @@ public sealed class AgentServer : IDisposable
         int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort, 
         bool unattendedAccessEnabled = false, 
         string? unattendedPassword = null,
-        SettingsManager? settingsManager = null)
+        SettingsManager? settingsManager = null,
+        IInputInjector? inputInjector = null)
     {
         _port = port;
         _settingsManager = settingsManager;
         _pinManager = new PinManager(initialPin, unattendedAccessEnabled, unattendedPassword);
         _capturer = new ScreenCapturer();
         _encoder = new JpegFrameEncoder(jpegQuality);
-        _inputInjector = new InputInjector();
+        _inputInjector = inputInjector ?? new InputInjector();
         _writer = new NetworkFrameWriter();
         _discoveryResponder = new AgentDiscoveryResponder(_port, discoveryPort);
 
@@ -101,6 +103,7 @@ public sealed class AgentServer : IDisposable
     {
         _serverCts?.Cancel();
         _discoveryResponder.Stop();
+        _inputInjector.ResetSession(0);
 
         lock (_clientLock)
         {
@@ -120,6 +123,7 @@ public sealed class AgentServer : IDisposable
 
     public void DisconnectCurrentClient()
     {
+        _inputInjector.ResetSession(0);
         lock (_clientLock)
         {
             if (_currentClient != null)
@@ -246,12 +250,25 @@ public sealed class AgentServer : IDisposable
             SystemPowerManager.AcquireKeepAwake();
             SystemPowerManager.WakeDisplay();
 
+            // Associate input injector with new session generation
+            int sessionId = Interlocked.Increment(ref _sessionGeneration);
+            _inputInjector.ResetSession(sessionId);
+
             // Run Video Streaming and Input Receiving concurrently
             var streamTask = Task.Run(() => StreamScreenLoopAsync(networkStream, sessionCts), ct);
             var inputTask = Task.Run(() => ReceiveInputLoopAsync(networkStream, sessionCts), ct);
 
             await Task.WhenAny(streamTask, inputTask).ConfigureAwait(false);
             sessionCts.Cancel();
+
+            try
+            {
+                await Task.WhenAll(streamTask, inputTask).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Ignore task cancellation exceptions
+            }
         }
         catch (Exception ex) when (ex is IOException or SocketException or EndOfStreamException or OperationCanceledException)
         {
@@ -263,6 +280,9 @@ public sealed class AgentServer : IDisposable
         }
         finally
         {
+            // Reset input injector to release all pressed keys and buttons and drain queues
+            _inputInjector.ResetSession(0);
+
             SystemPowerManager.ReleaseKeepAwake();
 
             lock (_clientLock)
@@ -408,5 +428,6 @@ public sealed class AgentServer : IDisposable
         _pinManager.UnattendedAccessChanged -= UpdateUnattendedPowerState;
         _discoveryResponder.Dispose();
         _capturer.Dispose();
+        _inputInjector.Dispose();
     }
 }

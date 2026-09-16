@@ -2,17 +2,30 @@ using System.Security.Cryptography;
 
 namespace RemoteLAN.Security;
 
-public sealed class PinManager
+public sealed class PinManager : IDisposable
 {
     private const string AlphanumericChars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
     private string _currentPin = string.Empty;
     private bool _unattendedAccessEnabled;
     private string? _unattendedPassword;
+    private int _rotationIntervalMinutes;
+    private Timer? _rotationTimer;
     private readonly object _lock = new();
 
     public event Action<string>? PinChanged;
     public event Action<bool, string?>? UnattendedAccessChanged;
+
+    public int RotationIntervalMinutes
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _rotationIntervalMinutes;
+            }
+        }
+    }
 
     public string CurrentPin
     {
@@ -122,7 +135,7 @@ public sealed class PinManager
         lock (_lock)
         {
             // 1. Match current session access code (case-insensitive for convenience)
-            if (string.Equals(_currentPin, trimmed, StringComparison.OrdinalIgnoreCase))
+            if (FixedTimeEquals(_currentPin, trimmed, ignoreCase: true))
             {
                 return true;
             }
@@ -130,13 +143,58 @@ public sealed class PinManager
             // 2. Match unattended access password if enabled (case-sensitive)
             if (_unattendedAccessEnabled && !string.IsNullOrWhiteSpace(_unattendedPassword))
             {
-                if (string.Equals(_unattendedPassword, trimmed, StringComparison.Ordinal))
+                if (FixedTimeEquals(_unattendedPassword, trimmed, ignoreCase: false))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+    }
+
+    private static bool FixedTimeEquals(string? a, string? b, bool ignoreCase)
+    {
+        if (a == null || b == null) return false;
+        if (ignoreCase)
+        {
+            a = a.ToUpperInvariant();
+            b = b.ToUpperInvariant();
+        }
+
+        byte[] aBytes = System.Text.Encoding.UTF8.GetBytes(a);
+        byte[] bBytes = System.Text.Encoding.UTF8.GetBytes(b);
+
+        return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
+    }
+
+    public void SetRotationInterval(int minutes)
+    {
+        lock (_lock)
+        {
+            _rotationIntervalMinutes = Math.Max(0, minutes);
+            _rotationTimer?.Dispose();
+            _rotationTimer = null;
+
+            if (_rotationIntervalMinutes > 0)
+            {
+                var interval = TimeSpan.FromMinutes(_rotationIntervalMinutes);
+                _rotationTimer = new Timer(OnRotationTimerElapsed, null, interval, interval);
+            }
+        }
+    }
+
+    internal void OnRotationTimerElapsed(object? state = null)
+    {
+        RegeneratePin();
+    }
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _rotationTimer?.Dispose();
+            _rotationTimer = null;
         }
     }
 }

@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="RemoteLAN — Settings" Height="680" Width="880"
-        MinHeight="640" MinWidth="840"
+        Title="RemoteLAN — Settings" Height="720" Width="920"
+        MinHeight="560" MinWidth="840"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC" Foreground="#0F172A"
         FontFamily="Segoe UI"
@@ -111,8 +111,8 @@
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="18"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="Padding" Value="16,14"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
     </Window.Resources>
 
@@ -147,37 +147,38 @@
                 </StackPanel>
 
                 <!-- Sidebar Footer Note -->
-                <TextBlock Grid.Row="2" Text="RemoteLAN v0.7.0" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                <TextBlock Grid.Row="2" Text="RemoteLAN v0.7.1" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
             </Grid>
         </Border>
 
         <!-- Right Content Panel -->
         <Grid Grid.Column="1" Margin="24">
             <!-- ============================================================= -->
-            <!-- TAB 1: SECURITY & ACCESS (No scrollbars)                       -->
+            <!-- TAB 1: SECURITY & ACCESS                                      -->
             <!-- ============================================================= -->
-            <StackPanel x:Name="SecurityPanel" Visibility="Visible">
-                <TextBlock Text="Security &amp; Access Control" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
-                <TextBlock Text="Manage unattended access credentials and unauthorized connection rate-limiting." FontSize="12" Foreground="#64748B" Margin="0,0,0,18"/>
+            <ScrollViewer x:Name="SecurityPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Visible" Focusable="False" Padding="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Security &amp; Access Control" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                    <TextBlock Text="Manage unattended access credentials and unauthorized connection rate-limiting." FontSize="12" Foreground="#64748B" Margin="0,0,0,14"/>
 
-                <!-- Unattended Access Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Unattended Access" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
-                                <TextBlock Text="Allow connecting anytime using a permanent password without requiring local user confirmation." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                            </StackPanel>
-                            <CheckBox x:Name="EnableUnattendedCheckBox" Grid.Column="1" Content="Enable" FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" VerticalAlignment="Center"
-                                      Checked="EnableUnattendedCheckBox_Changed" Unchecked="EnableUnattendedCheckBox_Changed"/>
-                        </Grid>
+                    <!-- Unattended Access Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Unattended Access" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                    <TextBlock Text="Allow connecting anytime using a permanent password without requiring local user confirmation." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <CheckBox x:Name="EnableUnattendedCheckBox" Grid.Column="1" Content="Enable" FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" VerticalAlignment="Center"
+                                          Checked="EnableUnattendedCheckBox_Changed" Unchecked="EnableUnattendedCheckBox_Changed"/>
+                            </Grid>
 
-                        <!-- Password Fields Area -->
-                        <Border x:Name="UnattendedCredentialsArea" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,10,0,0">
+                            <!-- Password Fields Area -->
+                            <Border x:Name="UnattendedCredentialsArea" Visibility="Collapsed" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,10,0,0">
                             <StackPanel>
                                 <TextBlock Text="Set Permanent Password" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"/>
 
@@ -280,171 +281,203 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-            </StackPanel>
 
-            <!-- ============================================================= -->
-            <!-- TAB 2: GENERAL & SYSTEM (No scrollbars)                        -->
-            <!-- ============================================================= -->
-            <StackPanel x:Name="GeneralPanel" Visibility="Collapsed">
-                <TextBlock Text="General &amp; System Preferences" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
-                <TextBlock Text="Startup, system tray behavior, and network listening options." FontSize="12" Foreground="#64748B" Margin="0,0,0,18"/>
-
-                <!-- Windows Startup Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Windows Startup" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start RemoteLAN automatically with Windows (Background mode)" 
-                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
-                                  Checked="StartWithWindowsCheckBox_Changed" Unchecked="StartWithWindowsCheckBox_Changed"/>
-                        <TextBlock Text="When enabled, RemoteLAN launches silently in the system tray when you log in, so you can connect to this PC remotely at any time."
-                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Window & Tray Behavior Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Window &amp; Tray Behavior" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
-                        
-                        <CheckBox x:Name="MinimizeOnCloseCheckBox" Content="Minimize to system tray when closing the window" 
-                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,8"
-                                  Checked="MinimizeOnCloseCheckBox_Changed" Unchecked="MinimizeOnCloseCheckBox_Changed"/>
-                        <TextBlock Text="Keeps the agent background server active in the tray when the main window is closed."
-                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
-                        <CheckBox x:Name="StartMinimizedCheckBox" Content="Start minimized to system tray by default" 
-                                  FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
-                                  Checked="StartMinimizedCheckBox_Changed" Unchecked="StartMinimizedCheckBox_Changed"/>
-                        <TextBlock Text="Avoids displaying the main window on initial launch unless manually opened."
-                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Network Ports Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Network Ports" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
-                        <Grid Margin="0,4,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Remote Desktop Streaming Port (TCP):" FontSize="12" Foreground="#334155"/>
-                            <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
-                                <TextBlock Text="9191" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
-                            </Border>
-                        </Grid>
-                        <Grid Margin="0,4,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="LAN Device Discovery Port (UDP):" FontSize="12" Foreground="#334155"/>
-                            <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
-                                <TextBlock Text="9192" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
-                            </Border>
-                        </Grid>
-                        <TextBlock Text="Connections use high-speed direct peer-to-peer TCP sockets without cloud relay servers." FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <!-- ============================================================= -->
-            <!-- TAB 3: ABOUT PROJECT & DEVELOPER (No scrollbars)               -->
-            <!-- ============================================================= -->
-            <StackPanel x:Name="AboutPanel" Visibility="Collapsed">
-                <!-- App Hero Card -->
-                <Border Style="{StaticResource CardBorderStyle}" Padding="18">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Image Source="/icon.png" Width="60" Height="60" Margin="0,0,18,0" VerticalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
-
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="RemoteLAN" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
-                                <Border Background="#E0F2FE" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="v0.7.0" FontSize="11" FontWeight="Bold" Foreground="#0284C7"/>
-                                </Border>
-                            </StackPanel>
-                            <TextBlock Text="High-Performance Peer-to-Peer Remote Desktop for Windows" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" Margin="0,2,0,4"/>
-                            <TextBlock Text="Fast, lightweight remote desktop streaming and input control designed for local area networks and high-throughput environments."
-                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- Developer Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Developer &amp; Creator" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
-                        
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Width="46" Height="46" CornerRadius="23" Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" Margin="0,0,14,0">
-                                <TextBlock Text="SA" FontSize="16" FontWeight="Bold" Foreground="#4F46E5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="Salman Asmat" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
-                                <TextBlock Text="hello@salmanasmat.com" FontSize="12" Foreground="#64748B" Margin="0,1,0,0"/>
-                                <TextBlock Margin="0,2,0,0">
-                                    <Hyperlink NavigateUri="https://salmanasmat.com" RequestNavigate="Hyperlink_RequestNavigate">
-                                        <Run Text="salmanasmat.com" FontSize="12" Foreground="#2563EB"/>
-                                    </Hyperlink>
-                                </TextBlock>
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Copy Email" Style="{StaticResource SecondaryButtonStyle}" Click="CopyDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
-                            <Button Grid.Column="1" Content="Send Email" Style="{StaticResource PrimaryButtonStyle}" Click="SendDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
-                            <Button Grid.Column="2" Content="🌐 Visit Website" Style="{StaticResource SecondaryButtonStyle}" Click="OpenWebsiteBtn_Click"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <!-- Technology Stack & Architecture Card -->
-                <Border Style="{StaticResource CardBorderStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Architecture &amp; Features" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
-                        <TextBlock Text="• Screen Capture: Desktop Duplication API (DXGI DirectX 11) with resilient GDI fallback" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
-                        <TextBlock Text="• Session Recovery: Automatic lock screen / UAC secure desktop recovery and wake support" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
-                        <TextBlock Text="• Power Actions: Remote Workstation Lock, Sleep, Restart, and Shutdown execution" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
-                        <TextBlock Text="• Network Transport: Direct TCP streaming with binary framed protocol &amp; UDP discovery" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
-                        <TextBlock Text="• Framework: C# .NET 8 • Windows Presentation Foundation (WPF)" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- License Card -->
+                <!-- Security PIN Auto-Rotation Card -->
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel>
                         <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="220"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="License &amp; Copyright" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
-                            <Border Grid.Column="1" Background="#ECFDF5" CornerRadius="4" Padding="8,2">
-                                <TextBlock Text="GPL v3.0" FontSize="11" FontWeight="Bold" Foreground="#059669"/>
-                            </Border>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="Security PIN Auto-Rotation" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                <TextBlock Text="Automatically regenerate a new host PIN after a specified time interval." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" x:Name="PinRotationComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="PinRotationComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Never (Default)"/>
+                                <ComboBoxItem Content="Every 15 minutes"/>
+                                <ComboBoxItem Content="Every 30 minutes"/>
+                                <ComboBoxItem Content="Every 1 hour"/>
+                                <ComboBoxItem Content="Every 4 hours"/>
+                                <ComboBoxItem Content="Every 8 hours"/>
+                                <ComboBoxItem Content="Every 24 hours (Daily)"/>
+                            </ComboBox>
                         </Grid>
-                        <TextBlock Text="RemoteLAN is free and open-source software licensed under the GNU General Public License v3.0. You are welcome to use, modify, and redistribute it under the terms of the GPL-3.0 license."
-                                   FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                        <TextBlock Text="Generates a fresh connection PIN periodically for enhanced security. Active sessions will not be disconnected."
+                                   FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
+        </ScrollViewer>
+
+            <!-- ============================================================= -->
+            <!-- TAB 2: GENERAL & SYSTEM                                       -->
+            <!-- ============================================================= -->
+            <ScrollViewer x:Name="GeneralPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed" Focusable="False" Padding="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="General &amp; System Preferences" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                    <TextBlock Text="Startup, system tray behavior, and network listening options." FontSize="12" Foreground="#64748B" Margin="0,0,0,18"/>
+
+                    <!-- Windows Startup Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Windows Startup" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start RemoteLAN automatically with Windows (Background mode)" 
+                                      FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
+                                      Checked="StartWithWindowsCheckBox_Changed" Unchecked="StartWithWindowsCheckBox_Changed"/>
+                            <TextBlock Text="When enabled, RemoteLAN launches silently in the system tray when you log in, so you can connect to this PC remotely at any time."
+                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Window & Tray Behavior Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Window &amp; Tray Behavior" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                            
+                            <CheckBox x:Name="MinimizeOnCloseCheckBox" Content="Minimize to system tray when closing the window" 
+                                      FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,8"
+                                      Checked="MinimizeOnCloseCheckBox_Changed" Unchecked="MinimizeOnCloseCheckBox_Changed"/>
+                            <TextBlock Text="Keeps the agent background server active in the tray when the main window is closed."
+                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                            <CheckBox x:Name="StartMinimizedCheckBox" Content="Start minimized to system tray by default" 
+                                      FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,4"
+                                      Checked="StartMinimizedCheckBox_Changed" Unchecked="StartMinimizedCheckBox_Changed"/>
+                            <TextBlock Text="Avoids displaying the main window on initial launch unless manually opened."
+                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Network Ports Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Network Ports" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                            <Grid Margin="0,4,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Remote Desktop Streaming Port (TCP):" FontSize="12" Foreground="#334155"/>
+                                <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
+                                    <TextBlock Text="9191" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
+                                </Border>
+                            </Grid>
+                            <Grid Margin="0,4,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="LAN Device Discovery Port (UDP):" FontSize="12" Foreground="#334155"/>
+                                <Border Grid.Column="1" Background="#E0F2FE" CornerRadius="4" Padding="8,2">
+                                    <TextBlock Text="9192" FontWeight="Bold" Foreground="#0284C7" FontSize="12"/>
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="Connections use high-speed direct peer-to-peer TCP sockets without cloud relay servers." FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ============================================================= -->
+            <!-- TAB 3: ABOUT PROJECT & DEVELOPER                              -->
+            <!-- ============================================================= -->
+            <ScrollViewer x:Name="AboutPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed" Focusable="False" Padding="0,0,10,0">
+                <StackPanel>
+                    <!-- App Hero Card -->
+                    <Border Style="{StaticResource CardBorderStyle}" Padding="18">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Image Source="/icon.png" Width="60" Height="60" Margin="0,0,18,0" VerticalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True"/>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="RemoteLAN" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
+                                    <Border Background="#E0F2FE" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="v0.7.1" FontSize="11" FontWeight="Bold" Foreground="#0284C7"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="High-Performance Peer-to-Peer Remote Desktop for Windows" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" Margin="0,2,0,4"/>
+                                <TextBlock Text="Fast, lightweight remote desktop streaming and input control designed for local area networks and high-throughput environments."
+                                           FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Developer Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Developer &amp; Creator" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
+                            
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Width="46" Height="46" CornerRadius="23" Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" Margin="0,0,14,0">
+                                    <TextBlock Text="SA" FontSize="16" FontWeight="Bold" Foreground="#4F46E5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Salman Asmat" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
+                                    <TextBlock Text="hello@salmanasmat.com" FontSize="12" Foreground="#64748B" Margin="0,1,0,0"/>
+                                    <TextBlock Margin="0,2,0,0">
+                                        <Hyperlink NavigateUri="https://salmanasmat.com" RequestNavigate="Hyperlink_RequestNavigate">
+                                            <Run Text="salmanasmat.com" FontSize="12" Foreground="#2563EB"/>
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="Copy Email" Style="{StaticResource SecondaryButtonStyle}" Click="CopyDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
+                                <Button Grid.Column="1" Content="Send Email" Style="{StaticResource PrimaryButtonStyle}" Click="SendDeveloperEmailBtn_Click" Margin="0,0,10,0"/>
+                                <Button Grid.Column="2" Content="🌐 Visit Website" Style="{StaticResource SecondaryButtonStyle}" Click="OpenWebsiteBtn_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Technology Stack & Architecture Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Architecture &amp; Features" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                            <TextBlock Text="• Screen Capture: Desktop Duplication API (DXGI DirectX 11) with resilient GDI fallback" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                            <TextBlock Text="• Session Recovery: Automatic lock screen / UAC secure desktop recovery and wake support" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                            <TextBlock Text="• Power Actions: Remote Workstation Lock, Sleep, Restart, and Shutdown execution" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                            <TextBlock Text="• Network Transport: Direct TCP streaming with binary framed protocol &amp; UDP discovery" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                            <TextBlock Text="• Framework: C# .NET 8 • Windows Presentation Foundation (WPF)" FontSize="11" Foreground="#475569" Margin="0,2,0,2"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- License Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="License &amp; Copyright" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                <Border Grid.Column="1" Background="#ECFDF5" CornerRadius="4" Padding="8,2">
+                                    <TextBlock Text="GPL v3.0" FontSize="11" FontWeight="Bold" Foreground="#059669"/>
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="RemoteLAN is free and open-source software licensed under the GNU General Public License v3.0. You are welcome to use, modify, and redistribute it under the terms of the GPL-3.0 license."
+                                       FontSize="11" Foreground="#64748B" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Window>

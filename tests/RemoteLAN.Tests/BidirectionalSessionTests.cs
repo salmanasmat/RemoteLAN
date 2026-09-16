@@ -16,12 +16,15 @@ public class BidirectionalSessionTests
         const int nodeBDiscovery = 9214;
         const string pinB = "445566";
 
+        var testInjectorA = new TestInputInjector();
+        var testInjectorB = new TestInputInjector();
+
         // Start Node A (acting as host on 9211)
-        using var hostA = new AgentServer(nodeAPort, jpegQuality: 60, initialPin: pinA, discoveryPort: nodeADiscovery);
+        using var hostA = new AgentServer(nodeAPort, jpegQuality: 60, initialPin: pinA, discoveryPort: nodeADiscovery, inputInjector: testInjectorA);
         hostA.Start();
 
         // Start Node B (acting as host on 9213)
-        using var hostB = new AgentServer(nodeBPort, jpegQuality: 60, initialPin: pinB, discoveryPort: nodeBDiscovery);
+        using var hostB = new AgentServer(nodeBPort, jpegQuality: 60, initialPin: pinB, discoveryPort: nodeBDiscovery, inputInjector: testInjectorB);
         hostB.Start();
 
         try
@@ -50,9 +53,24 @@ public class BidirectionalSessionTests
             Assert.Same(frameFromATcs.Task, frameA);
             Assert.NotEmpty(await frameFromATcs.Task);
 
+            var moveATcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            testInjectorB.MouseMoveInjected += _ => moveATcs.TrySetResult(true);
+
+            var moveBTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            testInjectorA.MouseMoveInjected += _ => moveBTcs.TrySetResult(true);
+
             // Send inputs in both directions
             await clientFromA.SendMouseMoveAsync(0.25, 0.25);
             await clientFromB.SendMouseMoveAsync(0.75, 0.75);
+
+            await Task.WhenAll(
+                Task.WhenAny(moveATcs.Task, Task.Delay(3000)),
+                Task.WhenAny(moveBTcs.Task, Task.Delay(3000))
+            );
+
+            // Verify inputs reached the injectors without moving the physical cursor
+            Assert.Contains(testInjectorB.MouseMoves, m => Math.Abs(m.X - 0.25) < 0.001 && Math.Abs(m.Y - 0.25) < 0.001);
+            Assert.Contains(testInjectorA.MouseMoves, m => Math.Abs(m.X - 0.75) < 0.001 && Math.Abs(m.Y - 0.75) < 0.001);
 
             // Disconnect both
             clientFromA.Disconnect();

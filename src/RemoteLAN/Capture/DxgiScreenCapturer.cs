@@ -20,6 +20,8 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
     private int _width;
     private int _height;
     private readonly Stopwatch _reinitThrottle = Stopwatch.StartNew();
+    private readonly object _syncLock = new();
+    private bool _disposed;
 
     public int Width => _width > 0 ? _width : 1920;
     public int Height => _height > 0 ? _height : 1080;
@@ -34,10 +36,13 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
 
     public bool Initialize()
     {
-        DisposeDuplication();
-
-        try
+        lock (_syncLock)
         {
+            if (_disposed) return false;
+            DisposeDuplicationLocked();
+
+            try
+            {
             if (_device == null || _context == null)
             {
                 var creationFlags = DeviceCreationFlags.BgraSupport;
@@ -118,114 +123,120 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
         }
         catch
         {
-            DisposeDuplication();
+            DisposeDuplicationLocked();
             return false;
+        }
         }
     }
 
     public unsafe Bitmap? CaptureFrame()
     {
-        if (_duplication == null || _device == null || _context == null || _stagingTexture == null || _outputBitmap == null)
+        lock (_syncLock)
         {
-            if (_reinitThrottle.ElapsedMilliseconds >= 500)
+            if (_disposed) return null;
+
+            if (_duplication == null || _device == null || _context == null || _stagingTexture == null || _outputBitmap == null)
             {
-                _reinitThrottle.Restart();
-                if (Initialize())
+                if (_reinitThrottle.ElapsedMilliseconds >= 500)
                 {
-                    // Duplication restored!
-                }
-            }
-
-            if (_duplication == null)
-            {
-                return null;
-            }
-        }
-
-        try
-        {
-            var acquireResult = _duplication!.AcquireNextFrame(
-                50,
-                out _,
-                out IDXGIResource? desktopResource);
-
-            if (acquireResult.Failure)
-            {
-                if (acquireResult.Code == Vortice.DXGI.ResultCode.WaitTimeout.Code)
-                {
-                    // No new frame available; return current cached frame
-                    return _outputBitmap;
-                }
-
-                // Access lost or display mode change (e.g. desktop locked)
-                DisposeDuplication();
-                _reinitThrottle.Restart();
-                return null;
-            }
-
-            using (desktopResource)
-            {
-                if (desktopResource != null)
-                {
-                    using var desktopTexture = desktopResource.QueryInterface<ID3D11Texture2D>();
-                    if (desktopTexture != null)
+                    _reinitThrottle.Restart();
+                    if (Initialize())
                     {
-                        _context!.CopyResource(_stagingTexture!, desktopTexture);
+                        // Duplication restored!
                     }
                 }
+
+                if (_duplication == null)
+                {
+                    return null;
+                }
             }
 
-            _duplication.ReleaseFrame();
-
-            // Map staging texture to copy bytes into the Bitmap
-            var mapped = _context!.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
             try
             {
-                var bmpData = _outputBitmap!.LockBits(
-                    new Rectangle(0, 0, _width, _height),
-                    ImageLockMode.WriteOnly,
-                    PixelFormat.Format32bppRgb);
+                var acquireResult = _duplication!.AcquireNextFrame(
+                    50,
+                    out _,
+                    out IDXGIResource? desktopResource);
 
+                if (acquireResult.Failure)
+                {
+                    if (acquireResult.Code == Vortice.DXGI.ResultCode.WaitTimeout.Code)
+                    {
+                        // No new frame available; return current cached frame
+                        return _outputBitmap;
+                    }
+
+                    // Access lost or display mode change (e.g. desktop locked)
+                    DisposeDuplicationLocked();
+                    _reinitThrottle.Restart();
+                    return null;
+                }
+
+                using (desktopResource)
+                {
+                    if (desktopResource != null)
+                    {
+                        using var desktopTexture = desktopResource.QueryInterface<ID3D11Texture2D>();
+                        if (desktopTexture != null)
+                        {
+                            _context!.CopyResource(_stagingTexture!, desktopTexture);
+                        }
+                    }
+                }
+
+                _duplication.ReleaseFrame();
+
+                // Map staging texture to copy bytes into the Bitmap
+                var mapped = _context!.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
                 try
                 {
-                    byte* srcPtr = (byte*)mapped.DataPointer;
-                    byte* dstPtr = (byte*)bmpData.Scan0;
-                    int srcRowPitch = (int)mapped.RowPitch;
-                    int dstRowPitch = bmpData.Stride;
-                    int copyRowLength = Math.Min(srcRowPitch, dstRowPitch);
+                    var bmpData = _outputBitmap!.LockBits(
+                        new Rectangle(0, 0, _width, _height),
+                        ImageLockMode.WriteOnly,
+                        PixelFormat.Format32bppRgb);
 
-                    for (int y = 0; y < _height; y++)
+                    try
                     {
-                        Buffer.MemoryCopy(srcPtr + (y * srcRowPitch), dstPtr + (y * dstRowPitch), dstRowPitch, copyRowLength);
+                        byte* srcPtr = (byte*)mapped.DataPointer;
+                        byte* dstPtr = (byte*)bmpData.Scan0;
+                        int srcRowPitch = (int)mapped.RowPitch;
+                        int dstRowPitch = bmpData.Stride;
+                        int copyRowLength = Math.Min(srcRowPitch, dstRowPitch);
+
+                        for (int y = 0; y < _height; y++)
+                        {
+                            Buffer.MemoryCopy(srcPtr + (y * srcRowPitch), dstPtr + (y * dstRowPitch), dstRowPitch, copyRowLength);
+                        }
+                    }
+                    finally
+                    {
+                        _outputBitmap.UnlockBits(bmpData);
                     }
                 }
                 finally
                 {
-                    _outputBitmap.UnlockBits(bmpData);
+                    _context.Unmap(_stagingTexture!, 0);
                 }
-            }
-            finally
-            {
-                _context.Unmap(_stagingTexture!, 0);
-            }
 
-            return _outputBitmap;
-        }
-        catch
-        {
-            DisposeDuplication();
-            int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
-            int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
-            return PlaceholderFrameHelper.RenderLockPlaceholder(
-                ref _placeholderBitmap,
-                ref _placeholderGraphics,
-                curW,
-                curH,
-                EngineName);
+                return _outputBitmap;
+            }
+            catch
+            {
+                DisposeDuplicationLocked();
+                int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
+                int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
+                return PlaceholderFrameHelper.RenderLockPlaceholder(
+                    ref _placeholderBitmap,
+                    ref _placeholderGraphics,
+                    curW,
+                    curH,
+                    EngineName);
+            }
         }
     }
 
-    private void DisposeDuplication()
+    private void DisposeDuplicationLocked()
     {
         try { _outputBitmap?.Dispose(); } catch { }
         _outputBitmap = null;
@@ -239,18 +250,24 @@ public sealed class DxgiScreenCapturer : IScreenCapturer
 
     public void Dispose()
     {
-        DisposeDuplication();
+        lock (_syncLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
 
-        try { _placeholderGraphics?.Dispose(); } catch { }
-        _placeholderGraphics = null;
+            DisposeDuplicationLocked();
 
-        try { _placeholderBitmap?.Dispose(); } catch { }
-        _placeholderBitmap = null;
+            try { _placeholderGraphics?.Dispose(); } catch { }
+            _placeholderGraphics = null;
 
-        try { _context?.Dispose(); } catch { }
-        _context = null;
+            try { _placeholderBitmap?.Dispose(); } catch { }
+            _placeholderBitmap = null;
 
-        try { _device?.Dispose(); } catch { }
-        _device = null;
+            try { _context?.Dispose(); } catch { }
+            _context = null;
+
+            try { _device?.Dispose(); } catch { }
+            _device = null;
+        }
     }
 }
