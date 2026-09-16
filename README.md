@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://semver.org)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![UI](https://img.shields.io/badge/UI-Light%20Mode-success.svg)](#)
 
@@ -11,14 +11,15 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Zero Cloud Relay**: Direct TCP socket connections between machines on your trusted local area network.
 - **Continuous Auto-Discovery**: Automatically discovers active RemoteLAN PCs on your subnet in the background and presents them as interactive squared tiles (AnyDesk-style) without requiring manual scanning.
 - **Clean Modern Light Mode UI**:
-  - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and 6-digit security PIN with one-click copy and regeneration.
+  - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment.
+  - **Unattended Access Mode**: Configure a permanent custom password for unattended access without requiring on-screen confirmation.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
 - **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, window titlebars, Windows taskbar, and in-app header branding.
-- **PIN Handshake Security & Saved Passwords**: Lightweight 6-digit PIN authentication with optional saved credentials ("Remember password for this device") for 1-click instant connection, plus reachability verification and persistent host PIN across app restarts.
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.3.0`).
+- **Alphanumeric Credentials & Unattended Access**: High-entropy 6-character alphanumeric access codes (letters and digits), permanent unattended password support, and client-side credential persistence ("Remember password for this device") for 1-click instant connection.
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.4.0`).
 
 ---
 
@@ -31,7 +32,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (32 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (35 tests)
 ```
 
 ### Network Protocols
@@ -80,6 +81,23 @@ dotnet build RemoteLAN.slnx -c Release
 dotnet test tests/RemoteLAN.Tests/RemoteLAN.Tests.csproj --verbosity normal
 ```
 
+### Create Installer (Inno Setup)
+
+To compile and package the standalone Windows installer:
+
+```powershell
+# Execute automated packaging script
+.\build-installer.ps1
+```
+
+The compiled installer is output to:
+`dist/RemoteLAN_Setup_v0.4.0.exe`
+
+- **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
+- **Automatic Background Startup**: Configures Windows Run key (`--background`) so the host is immediately reachable on boot without displaying the main window.
+- **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
+- **Connection Alert**: Main window automatically reveals itself upon incoming remote connection.
+
 ### Launching RemoteLAN (Works on Any PC)
 
 Run the unified app on both **PC A** and **PC B**:
@@ -90,14 +108,14 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 
 #### How it Works:
 1. **On PC A**:
-   - The left sidebar displays PC A's IP address and a 6-digit security PIN.
+   - The left sidebar displays PC A's IP address, an alphanumeric session access code (e.g. `7K2M9X`), and an Unattended Access configuration card.
 2. **On PC B**:
-   - The left sidebar displays PC B's IP address and its own 6-digit security PIN.
+   - The left sidebar displays PC B's IP address and its own access credentials.
 3. **To connect PC A → PC B**:
    - On PC A, PC B automatically appears as a square device tile in the discovered devices grid.
    - Click PC B's tile (or enter PC B's IP in the top header and click **Connect ➔**).
-   - RemoteLAN automatically tests reachability. If reachable, it presents the PIN prompt modal with a **"Remember password for this device"** toggle (or connects instantly if already remembered).
-   - Enter PC B's 6-digit PIN and click **Connect ➔**.
+   - RemoteLAN automatically tests reachability. If reachable, it presents the authentication modal with a **"Remember password for this device"** toggle (or connects instantly if already remembered).
+   - Enter PC B's session access code or permanent unattended password and click **Connect ➔**.
    - A dedicated remote desktop session window opens with full mouse and keyboard control!
 4. **To connect PC B → PC A**:
    - Exact same process in reverse!

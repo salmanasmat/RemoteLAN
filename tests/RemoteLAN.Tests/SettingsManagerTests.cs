@@ -74,4 +74,27 @@ public class SettingsManagerTests : IDisposable
         Assert.False(manager.HasSavedPassword("LAPTOP-01", "10.0.0.50"));
         Assert.False(manager.TryGetPassword("LAPTOP-01", null, out _));
     }
+
+    [Fact]
+    public void SettingsManager_UnattendedAccess_Persists_And_Loads()
+    {
+        var manager1 = new SettingsManager(_tempSettingsPath);
+        Assert.False(manager1.IsUnattendedAccessEnabled());
+        Assert.Null(manager1.GetUnattendedPassword());
+
+        manager1.SetUnattendedAccess(true, "PermanentHostPass99!");
+        Assert.True(manager1.IsUnattendedAccessEnabled());
+        Assert.Equal("PermanentHostPass99!", manager1.GetUnattendedPassword());
+
+        // Reload from fresh instance
+        var manager2 = new SettingsManager(_tempSettingsPath);
+        Assert.True(manager2.IsUnattendedAccessEnabled());
+        Assert.Equal("PermanentHostPass99!", manager2.GetUnattendedPassword());
+
+        // Disable unattended access
+        manager2.SetUnattendedAccess(false);
+        Assert.False(manager2.IsUnattendedAccessEnabled());
+        // Password retained for convenience when re-enabling
+        Assert.Equal("PermanentHostPass99!", manager2.GetUnattendedPassword());
+    }
 }

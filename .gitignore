@@ -3,6 +3,7 @@
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+dist/
 .vs/
 .vscode/
 *.user

@@ -99,4 +99,59 @@ public class EndToEndSessionTests
             agent.Stop();
         }
     }
+
+    [Fact]
+    public async Task EndToEnd_UnattendedAccess_Authenticates_With_Password_And_SessionCode()
+    {
+        const int port = TestPort + 2;
+        const string sessionCode = "7K2M9X";
+        const string unattendedPassword = "SuperSecretLanPass2026!";
+
+        using var agent = new AgentServer(port, initialPin: sessionCode, unattendedAccessEnabled: true, unattendedPassword: unattendedPassword);
+        agent.Start();
+
+        try
+        {
+            // 1. Authenticate using unattended password
+            using (var controller1 = new ControllerClient())
+            {
+                await controller1.ConnectAsync("127.0.0.1", port, unattendedPassword);
+                Assert.Equal(ControllerState.Connected, controller1.State);
+                controller1.Disconnect();
+            }
+
+            await Task.Delay(100);
+
+            // 2. Authenticate using alphanumeric session access code (case-insensitive test)
+            using (var controller2 = new ControllerClient())
+            {
+                await controller2.ConnectAsync("127.0.0.1", port, "7k2m9x");
+                Assert.Equal(ControllerState.Connected, controller2.State);
+                controller2.Disconnect();
+            }
+
+            await Task.Delay(100);
+
+            // 3. Disable unattended access and verify unattended password gets rejected
+            agent.PinManager.UnattendedAccessEnabled = false;
+
+            using (var controller3 = new ControllerClient())
+            {
+                var errorTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                controller3.StateChanged += (state, _) =>
+                {
+                    if (state == ControllerState.Error) errorTcs.TrySetResult(true);
+                };
+
+                await controller3.ConnectAsync("127.0.0.1", port, unattendedPassword);
+                var res = await Task.WhenAny(errorTcs.Task, Task.Delay(3000));
+                Assert.Same(errorTcs.Task, res);
+                Assert.Equal(ControllerState.Error, controller3.State);
+            }
+        }
+        finally
+        {
+            agent.Stop();
+        }
+    }
 }

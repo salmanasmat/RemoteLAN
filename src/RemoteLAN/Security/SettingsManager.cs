@@ -11,6 +11,8 @@ public sealed class SettingsManager
     public sealed class SettingsData
     {
         public string? HostPin { get; set; }
+        public bool UnattendedAccessEnabled { get; set; }
+        public string? UnattendedPassword { get; set; }
         public Dictionary<string, string> SavedPasswords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -41,6 +43,35 @@ public sealed class SettingsManager
         lock (_lock)
         {
             _data.HostPin = pin;
+            SaveLocked();
+        }
+    }
+
+    public bool IsUnattendedAccessEnabled()
+    {
+        lock (_lock)
+        {
+            return _data.UnattendedAccessEnabled;
+        }
+    }
+
+    public string? GetUnattendedPassword()
+    {
+        lock (_lock)
+        {
+            return _data.UnattendedPassword;
+        }
+    }
+
+    public void SetUnattendedAccess(bool enabled, string? password = null)
+    {
+        lock (_lock)
+        {
+            _data.UnattendedAccessEnabled = enabled;
+            if (password != null)
+            {
+                _data.UnattendedPassword = password;
+            }
             SaveLocked();
         }
     }

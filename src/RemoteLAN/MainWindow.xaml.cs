@@ -43,9 +43,16 @@ public partial class MainWindow : Window
 
         HostDeviceNameText.Text = Environment.MachineName;
 
-        // Load persistent host PIN if previously saved, otherwise AgentServer generates one and saves it
+        // Load persistent host PIN and unattended access credentials
         string? savedHostPin = _settingsManager.GetHostPin();
-        _server = new AgentServer(ProtocolConstants.DefaultPort, initialPin: savedHostPin);
+        bool unattendedEnabled = _settingsManager.IsUnattendedAccessEnabled();
+        string? unattendedPassword = _settingsManager.GetUnattendedPassword();
+
+        _server = new AgentServer(
+            ProtocolConstants.DefaultPort,
+            initialPin: savedHostPin,
+            unattendedAccessEnabled: unattendedEnabled,
+            unattendedPassword: unattendedPassword);
 
         // If this is the first run and a PIN was newly generated, persist it
         if (string.IsNullOrWhiteSpace(savedHostPin))
@@ -57,8 +64,10 @@ public partial class MainWindow : Window
         _server.ClientConnected += Server_ClientConnected;
         _server.ClientDisconnected += Server_ClientDisconnected;
         _server.PinManager.PinChanged += PinManager_PinChanged;
+        _server.PinManager.UnattendedAccessChanged += PinManager_UnattendedAccessChanged;
 
         UpdatePinDisplay(_server.PinManager.CurrentPin);
+        UpdateUnattendedUi(unattendedEnabled, unattendedPassword);
         LoadLocalIpAddresses();
 
         _server.Start();
@@ -141,10 +150,32 @@ public partial class MainWindow : Window
     {
     }
 
+    public void ShowAndActivate()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (!IsVisible)
+            {
+                Show();
+            }
+
+            if (WindowState == WindowState.Minimized)
+            {
+                WindowState = WindowState.Normal;
+            }
+
+            Activate();
+            Topmost = true;
+            Topmost = false;
+            Focus();
+        });
+    }
+
     private void Server_ClientConnected(string endpoint)
     {
         Dispatcher.Invoke(() =>
         {
+            ShowAndActivate();
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
             SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
@@ -184,6 +215,187 @@ public partial class MainWindow : Window
     private void RegeneratePin_Click(object sender, RoutedEventArgs e)
     {
         _server.PinManager.RegeneratePin();
+    }
+
+    private void CustomPin_Click(object sender, RoutedEventArgs e)
+    {
+        CustomCodeTextBox.Text = _server.PinManager.CurrentPin;
+        CustomCodeModalStatusText.Visibility = Visibility.Collapsed;
+        CustomCodeModalStatusText.Text = string.Empty;
+        CustomCodeModalOverlay.Visibility = Visibility.Visible;
+        CustomCodeTextBox.Focus();
+        CustomCodeTextBox.SelectAll();
+    }
+
+    private void CloseCustomCodeModal_Click(object sender, RoutedEventArgs e)
+    {
+        CustomCodeModalOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void CustomCodeModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == CustomCodeModalOverlay)
+        {
+            CloseCustomCodeModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void CustomCodeTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SaveCustomCode_Click(this, new RoutedEventArgs());
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseCustomCodeModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void SaveCustomCode_Click(object sender, RoutedEventArgs e)
+    {
+        string code = CustomCodeTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(code) || code.Length < 4)
+        {
+            CustomCodeModalStatusText.Text = "Code must be at least 4 alphanumeric characters.";
+            CustomCodeModalStatusText.Visibility = Visibility.Visible;
+            CustomCodeTextBox.Focus();
+            return;
+        }
+
+        _server.PinManager.SetPin(code);
+        CustomCodeModalOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void PinManager_UnattendedAccessChanged(bool enabled, string? password)
+    {
+        UpdateUnattendedUi(enabled, password);
+    }
+
+    private void UpdateUnattendedUi(bool enabled, string? password)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            bool active = enabled && !string.IsNullOrWhiteSpace(password);
+            EnableUnattendedCheckBox.IsChecked = active;
+
+            if (active)
+            {
+                UnattendedStatusBadge.Background = new SolidColorBrush(Color.FromRgb(236, 253, 245)); // Emerald 50
+                UnattendedStatusText.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105)); // Emerald 600
+                UnattendedStatusText.Text = "ACTIVE";
+                SetUnattendedPasswordBtn.Content = "Change Password...";
+            }
+            else
+            {
+                UnattendedStatusBadge.Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)); // Slate 100
+                UnattendedStatusText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Slate 500
+                UnattendedStatusText.Text = "DISABLED";
+                SetUnattendedPasswordBtn.Content = string.IsNullOrWhiteSpace(password) ? "Set Password..." : "Change Password...";
+            }
+        });
+    }
+
+    private void EnableUnattendedCheckBox_Checked(object sender, RoutedEventArgs e)
+    {
+        string? currentPass = _settingsManager.GetUnattendedPassword();
+        if (string.IsNullOrWhiteSpace(currentPass))
+        {
+            OpenUnattendedModal();
+        }
+        else
+        {
+            _settingsManager.SetUnattendedAccess(true);
+            _server.PinManager.ConfigureUnattendedAccess(true, currentPass);
+            UpdateUnattendedUi(true, currentPass);
+        }
+    }
+
+    private void EnableUnattendedCheckBox_Unchecked(object sender, RoutedEventArgs e)
+    {
+        _settingsManager.SetUnattendedAccess(false);
+        _server.PinManager.UnattendedAccessEnabled = false;
+        UpdateUnattendedUi(false, _settingsManager.GetUnattendedPassword());
+    }
+
+    private void SetUnattendedPasswordBtn_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUnattendedModal();
+    }
+
+    private void OpenUnattendedModal()
+    {
+        UnattendedNewPasswordBox.Password = string.Empty;
+        UnattendedConfirmPasswordBox.Password = string.Empty;
+        UnattendedModalStatusText.Visibility = Visibility.Collapsed;
+        UnattendedModalStatusText.Text = string.Empty;
+        UnattendedPasswordModalOverlay.Visibility = Visibility.Visible;
+        UnattendedNewPasswordBox.Focus();
+    }
+
+    private void CloseUnattendedModal_Click(object sender, RoutedEventArgs e)
+    {
+        UnattendedPasswordModalOverlay.Visibility = Visibility.Collapsed;
+        string? currentPass = _settingsManager.GetUnattendedPassword();
+        if (string.IsNullOrWhiteSpace(currentPass))
+        {
+            EnableUnattendedCheckBox.IsChecked = false;
+        }
+    }
+
+    private void UnattendedPasswordModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == UnattendedPasswordModalOverlay)
+        {
+            CloseUnattendedModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void UnattendedPasswordBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SaveUnattendedPassword_Click(this, new RoutedEventArgs());
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseUnattendedModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void SaveUnattendedPassword_Click(object sender, RoutedEventArgs e)
+    {
+        string pass1 = UnattendedNewPasswordBox.Password;
+        string pass2 = UnattendedConfirmPasswordBox.Password;
+
+        if (string.IsNullOrWhiteSpace(pass1))
+        {
+            UnattendedModalStatusText.Text = "Please enter a password.";
+            UnattendedModalStatusText.Visibility = Visibility.Visible;
+            UnattendedNewPasswordBox.Focus();
+            return;
+        }
+
+        if (pass1.Length < 4)
+        {
+            UnattendedModalStatusText.Text = "Password must be at least 4 characters long.";
+            UnattendedModalStatusText.Visibility = Visibility.Visible;
+            UnattendedNewPasswordBox.Focus();
+            return;
+        }
+
+        if (pass1 != pass2)
+        {
+            UnattendedModalStatusText.Text = "Passwords do not match. Please re-type.";
+            UnattendedModalStatusText.Visibility = Visibility.Visible;
+            UnattendedConfirmPasswordBox.Focus();
+            return;
+        }
+
+        _settingsManager.SetUnattendedAccess(true, pass1);
+        _server.PinManager.ConfigureUnattendedAccess(true, pass1);
+        UpdateUnattendedUi(true, pass1);
+        UnattendedPasswordModalOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void DisconnectIncomingClient_Click(object sender, RoutedEventArgs e)
@@ -386,10 +598,23 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && PinModalOverlay.Visibility == Visibility.Visible)
+        if (e.Key == Key.Escape)
         {
-            ClosePinModal_Click(this, new RoutedEventArgs());
-            e.Handled = true;
+            if (PinModalOverlay.Visibility == Visibility.Visible)
+            {
+                ClosePinModal_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (UnattendedPasswordModalOverlay.Visibility == Visibility.Visible)
+            {
+                CloseUnattendedModal_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (CustomCodeModalOverlay.Visibility == Visibility.Visible)
+            {
+                CloseCustomCodeModal_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
     }
 
@@ -412,7 +637,7 @@ public partial class MainWindow : Window
         string pin = ModalPinTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(pin))
         {
-            ModalStatusText.Text = "Please enter the 6-digit security PIN.";
+            ModalStatusText.Text = "Please enter the access code or unattended password.";
             ModalStatusText.Visibility = Visibility.Visible;
             ModalPinTextBox.Focus();
             return;
@@ -442,11 +667,11 @@ public partial class MainWindow : Window
         {
             if (errorMsg != null && errorMsg.Contains("Authentication", StringComparison.OrdinalIgnoreCase))
             {
-                ModalStatusText.Text = "Incorrect security PIN. Please check the PIN on the remote PC.";
+                ModalStatusText.Text = "Incorrect access code or password. Please verify the credentials on the remote PC.";
             }
             else
             {
-                ModalStatusText.Text = "Could not connect. Check PIN or ensure RemoteLAN is running.";
+                ModalStatusText.Text = "Could not connect. Check credentials or ensure RemoteLAN is running.";
             }
             ModalStatusText.Visibility = Visibility.Visible;
             ModalConnectBtn.IsEnabled = true;

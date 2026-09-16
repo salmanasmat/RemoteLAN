@@ -38,10 +38,10 @@ public sealed class AgentServer : IDisposable
     public event Action? ClientDisconnected;
     public event Action<double>? FpsUpdated;
 
-    public AgentServer(int port = ProtocolConstants.DefaultPort, int jpegQuality = 70, string? initialPin = null, int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort)
+    public AgentServer(int port = ProtocolConstants.DefaultPort, int jpegQuality = 70, string? initialPin = null, int discoveryPort = RemoteLAN.Protocol.Discovery.DiscoveryConstants.DiscoveryPort, bool unattendedAccessEnabled = false, string? unattendedPassword = null)
     {
         _port = port;
-        _pinManager = new PinManager(initialPin);
+        _pinManager = new PinManager(initialPin, unattendedAccessEnabled, unattendedPassword);
         _capturer = new ScreenCapturer();
         _encoder = new JpegFrameEncoder(jpegQuality);
         _inputInjector = new InputInjector();

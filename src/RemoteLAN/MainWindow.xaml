@@ -136,6 +136,47 @@
             </Setter>
         </Style>
 
+        <!-- Modern PasswordBox Style -->
+        <Style x:Key="ModernPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="False" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#2563EB"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Crisp Square Device Tile Style (No blurry drop shadows) -->
         <Style x:Key="DeviceTileBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="#FFFFFF"/>
@@ -268,7 +309,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v0.3.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v0.4.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -314,26 +355,56 @@
                                     Height="38" Click="CopyIp_Click"/>
                         </Grid>
 
-                        <!-- Security PIN -->
-                        <TextBlock Text="YOUR SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <!-- Session Access Code -->
+                        <TextBlock Text="SESSION ACCESS CODE" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
                         <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1.5" CornerRadius="8" Padding="10,8" Margin="0,0,0,8"
                                 SnapsToDevicePixels="True">
-                            <TextBlock x:Name="PinTextBlock" Text="123456" FontSize="26" FontWeight="Bold" Foreground="#0284C7" 
+                            <TextBlock x:Name="PinTextBlock" Text="7K2M9X" FontSize="26" FontWeight="Bold" Foreground="#0284C7" 
                                        HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Consolas, Segoe UI"
                                        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                         </Border>
 
-                        <!-- PIN Action Buttons -->
-                        <Grid Margin="0,0,0,16">
+                        <!-- Code Action Buttons -->
+                        <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Copy PIN" Margin="0,0,4,0" Height="34" 
+                            <Button Grid.Column="0" Content="Copy" Margin="0,0,3,0" Height="32" 
                                     Style="{StaticResource SecondaryButtonStyle}" Click="CopyPin_Click"/>
-                            <Button Grid.Column="1" Content="New PIN" Margin="4,0,0,0" Height="34" 
+                            <Button Grid.Column="1" Content="New" Margin="3,0,3,0" Height="32" 
                                     Style="{StaticResource SecondaryButtonStyle}" Click="RegeneratePin_Click"/>
+                            <Button Grid.Column="2" Content="Custom..." Margin="3,0,0,0" Height="32" 
+                                    Style="{StaticResource SecondaryButtonStyle}" Click="CustomPin_Click"/>
                         </Grid>
+
+                        <!-- Unattended Access Section -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,12" Margin="0,0,0,16"
+                                SnapsToDevicePixels="True">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="UNATTENDED ACCESS" FontSize="10" FontWeight="Bold" Foreground="#64748B" VerticalAlignment="Center"/>
+                                    <Border x:Name="UnattendedStatusBadge" Grid.Column="1" Background="#F1F5F9" CornerRadius="4" Padding="6,2">
+                                        <TextBlock x:Name="UnattendedStatusText" Text="DISABLED" FontSize="9" FontWeight="Bold" Foreground="#64748B"/>
+                                    </Border>
+                                </Grid>
+
+                                <CheckBox x:Name="EnableUnattendedCheckBox" Content="Enable Unattended Access" FontSize="12" FontWeight="SemiBold"
+                                          Foreground="#1E293B" Cursor="Hand" Margin="0,0,0,6"
+                                          Checked="EnableUnattendedCheckBox_Checked" Unchecked="EnableUnattendedCheckBox_Unchecked"/>
+
+                                <TextBlock Text="Access anytime with a permanent password without requiring on-screen confirmation."
+                                           FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <Button x:Name="SetUnattendedPasswordBtn" Content="Set Password..." Style="{StaticResource SecondaryButtonStyle}"
+                                        Height="30" FontSize="11" FontWeight="SemiBold" Click="SetUnattendedPasswordBtn_Click"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -543,13 +614,13 @@
 
                     <!-- Row 2: PIN Input Field -->
                     <StackPanel Grid.Row="2">
-                        <TextBlock Text="SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <TextBlock Text="ACCESS CODE OR PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
                         <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="42"
                                  FontSize="18" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
                                  KeyDown="ModalPinTextBox_KeyDown"/>
                         <CheckBox x:Name="SaveModalPasswordCheckBox" Content="Remember password for this device" 
                                   IsChecked="True" FontSize="12" FontWeight="Medium" Foreground="#334155" Margin="0,10,0,0" Cursor="Hand"/>
-                        <TextBlock Text="Enter the 6-digit security PIN displayed on the remote PC." FontSize="11" Foreground="#94A3B8" Margin="0,5,0,0"/>
+                        <TextBlock Text="Enter the access code or unattended password for the remote PC." FontSize="11" Foreground="#94A3B8" Margin="0,5,0,0"/>
                     </StackPanel>
 
                     <!-- Row 3: Modal Status / Error Feedback -->
@@ -572,6 +643,116 @@
                                 Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="Collapsed"
                                 Click="ModalForgetPasswordBtn_Click"/>
                     </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- UNATTENDED ACCESS PASSWORD MODAL OVERLAY                          -->
+        <!-- ================================================================= -->
+        <Grid Grid.ColumnSpan="2" x:Name="UnattendedPasswordModalOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1001" MouseDown="UnattendedPasswordModalOverlay_MouseDown"
+              SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="Unattended Access Password" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
+                                Cursor="Hand" Click="CloseUnattendedModal_Click"/>
+                    </Grid>
+
+                    <!-- Description -->
+                    <TextBlock Grid.Row="1" Text="Set a permanent password to access this computer remotely anytime without someone present."
+                               FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,10,0,16"/>
+
+                    <!-- Password Inputs -->
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="NEW PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
+                        <PasswordBox x:Name="UnattendedNewPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" Height="40" Margin="0,0,0,12"
+                                     KeyDown="UnattendedPasswordBox_KeyDown"/>
+
+                        <TextBlock Text="CONFIRM PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
+                        <PasswordBox x:Name="UnattendedConfirmPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" Height="40"
+                                     KeyDown="UnattendedPasswordBox_KeyDown"/>
+                    </StackPanel>
+
+                    <!-- Validation / Status -->
+                    <TextBlock Grid.Row="3" x:Name="UnattendedModalStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#DC2626" 
+                               HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
+
+                    <!-- Action Buttons -->
+                    <Grid Grid.Row="4" Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="CloseUnattendedModal_Click"/>
+                        <Button Grid.Column="2" Content="Save Password" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="SaveUnattendedPassword_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- CUSTOM SESSION CODE MODAL OVERLAY                                 -->
+        <!-- ================================================================= -->
+        <Grid Grid.ColumnSpan="2" x:Name="CustomCodeModalOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1002" MouseDown="CustomCodeModalOverlay_MouseDown"
+              SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
+                    Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="Set Custom Access Code" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
+                                Cursor="Hand" Click="CloseCustomCodeModal_Click"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Text="Enter an alphanumeric access code for this session (minimum 4 characters)."
+                               FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,10,0,16"/>
+
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="CUSTOM CODE" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
+                        <TextBox x:Name="CustomCodeTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="40"
+                                 FontSize="16" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
+                                 KeyDown="CustomCodeTextBox_KeyDown"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" x:Name="CustomCodeModalStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#DC2626" 
+                               HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
+
+                    <Grid Grid.Row="4" Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="CloseCustomCodeModal_Click"/>
+                        <Button Grid.Column="2" Content="Apply Code" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="SaveCustomCode_Click"/>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
