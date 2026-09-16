@@ -1,4 +1,4 @@
-using RemoteLAN.Agent.Security;
+using RemoteLAN.Security;
 
 namespace RemoteLAN.Tests;
 

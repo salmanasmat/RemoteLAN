@@ -1,5 +1,4 @@
-using RemoteLAN.Agent.Discovery;
-using RemoteLAN.Controller.Discovery;
+using RemoteLAN.Discovery;
 using RemoteLAN.Protocol.Discovery;
 
 namespace RemoteLAN.Tests;

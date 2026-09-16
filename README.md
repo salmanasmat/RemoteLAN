@@ -25,9 +25,7 @@ RemoteLAN/
 ├── RemoteLAN.slnx                    # Solution file
 ├── src/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
-│   ├── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
-│   ├── RemoteLAN.Agent/              # Standalone agent wrapper
-│   └── RemoteLAN.Controller/         # Standalone controller wrapper
+│   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
     └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (26 tests)
 ```

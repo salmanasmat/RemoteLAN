@@ -1,7 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/RemoteLAN.Agent/RemoteLAN.Agent.csproj" />
-    <Project Path="src/RemoteLAN.Controller/RemoteLAN.Controller.csproj" />
     <Project Path="src/RemoteLAN.Protocol/RemoteLAN.Protocol.csproj" />
     <Project Path="src/RemoteLAN/RemoteLAN.csproj" />
   </Folder>

@@ -1,5 +1,5 @@
 using System.Windows;
-using RemoteLAN.Controller.Input;
+using RemoteLAN.Input;
 
 namespace RemoteLAN.Tests;
 

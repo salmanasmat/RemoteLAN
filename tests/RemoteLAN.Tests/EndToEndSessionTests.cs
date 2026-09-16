@@ -1,5 +1,4 @@
-using RemoteLAN.Agent.Network;
-using RemoteLAN.Controller.Network;
+using RemoteLAN.Network;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
 
