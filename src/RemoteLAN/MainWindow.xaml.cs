@@ -1,8 +1,11 @@
+using System.Collections.ObjectModel;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using RemoteLAN.Discovery;
 using RemoteLAN.Network;
 using RemoteLAN.Protocol.Discovery;
@@ -15,6 +18,11 @@ public partial class MainWindow : Window
 {
     private readonly AgentServer _server;
     private readonly LanDiscoveryClient _discoveryClient = new();
+    private readonly ObservableCollection<DiscoveredAgent> _discoveredAgents = new();
+    private readonly DispatcherTimer _discoveryTimer = new();
+    private readonly HashSet<string> _localIpAddresses = new(StringComparer.OrdinalIgnoreCase) { "127.0.0.1", "localhost", "::1" };
+    private DiscoveredAgent? _modalTargetAgent;
+    private bool _isScanning;
 
     private sealed class NetworkAddressItem
     {
@@ -38,13 +46,21 @@ public partial class MainWindow : Window
         _server.ClientDisconnected += Server_ClientDisconnected;
         _server.PinManager.PinChanged += PinManager_PinChanged;
 
-        HostEngineText.Text = _server.CaptureEngineName;
         UpdatePinDisplay(_server.PinManager.CurrentPin);
         LoadLocalIpAddresses();
 
         _server.Start();
 
-        // Perform initial background scan for other PCs on LAN
+        // Bind discovered PCs collection to the AnyDesk-style grid
+        DiscoveredPcsListBox.ItemsSource = _discoveredAgents;
+        UpdateEmptyState();
+
+        // Setup continuous automatic LAN discovery (runs every 5 seconds)
+        _discoveryTimer.Interval = TimeSpan.FromSeconds(5);
+        _discoveryTimer.Tick += async (s, e) => await PerformDiscoveryScanAsync();
+        _discoveryTimer.Start();
+
+        // Trigger immediate scan upon application launch
         _ = PerformDiscoveryScanAsync();
     }
 
@@ -65,6 +81,8 @@ public partial class MainWindow : Window
                 if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
                 {
                     string ipStr = unicast.Address.ToString();
+                    _localIpAddresses.Add(ipStr);
+
                     bool isLikelyLan = ipStr.StartsWith("192.168.") || ipStr.StartsWith("10.") ||
                                        (hasGateway && !ipStr.StartsWith("169.254."));
 
@@ -83,7 +101,7 @@ public partial class MainWindow : Window
             items.Add(new NetworkAddressItem
             {
                 IpAddress = "127.0.0.1",
-                DisplayText = "127.0.0.1 (Loopback only)",
+                DisplayText = "127.0.0.1 (Loopback)",
                 IsPrimary = true
             });
         }
@@ -110,7 +128,23 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            HostStatusText.Text = status;
+            // Always display clean, consumer-friendly status without ports or technical engines
+            if (status.Contains("Stopped", StringComparison.OrdinalIgnoreCase))
+            {
+                HostStatusText.Text = "Host Offline";
+                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+            }
+            else if (status.Contains("Connecting", StringComparison.OrdinalIgnoreCase) ||
+                     status.Contains("Connected", StringComparison.OrdinalIgnoreCase))
+            {
+                HostStatusText.Text = "Session Active";
+                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)); // Blue
+            }
+            else
+            {
+                HostStatusText.Text = "Ready for connections";
+                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Emerald Green
+            }
         });
     }
 
@@ -119,6 +153,7 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)); // Blue
+            HostStatusText.Text = "Session Active";
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
         });
@@ -129,6 +164,7 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Green
+            HostStatusText.Text = "Ready for connections";
             ActiveClientCard.Visibility = Visibility.Collapsed;
         });
     }
@@ -164,74 +200,297 @@ public partial class MainWindow : Window
         _server.DisconnectCurrentClient();
     }
 
-    private async void ScanLanBtn_Click(object sender, RoutedEventArgs e)
-    {
-        await PerformDiscoveryScanAsync();
-    }
-
     private async Task PerformDiscoveryScanAsync()
     {
-        ScanLanBtn.IsEnabled = false;
-        ConnectionStatusText.Text = "Scanning LAN for running PCs...";
+        if (_isScanning) return;
+        _isScanning = true;
 
         try
         {
-            var agents = await _discoveryClient.DiscoverAgentsAsync();
-            DiscoveredPcsComboBox.ItemsSource = agents;
+            // Discover remote agents, explicitly filtering out this machine's own network interfaces
+            var rawAgents = await _discoveryClient.DiscoverAgentsAsync(filterSelf: true);
 
-            if (agents.Count > 0)
+            // Double filter against local machine name, loopback, and local IPs
+            var filteredAgents = rawAgents.Where(a =>
+                !string.Equals(a.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) &&
+                !_localIpAddresses.Contains(a.IpAddress) &&
+                a.IpAddress != "127.0.0.1"
+            ).ToList();
+
+            Dispatcher.Invoke(() =>
             {
-                DiscoveredPcsComboBox.SelectedIndex = 0;
-                ConnectionStatusText.Text = $"Discovered {agents.Count} PC(s) on LAN";
-            }
-            else
-            {
-                ConnectionStatusText.Text = "No other RemoteLAN PCs found on LAN";
-            }
+                // Remove stale devices
+                for (int i = _discoveredAgents.Count - 1; i >= 0; i--)
+                {
+                    var existing = _discoveredAgents[i];
+                    if (!filteredAgents.Any(a => a.IpAddress.Equals(existing.IpAddress, StringComparison.OrdinalIgnoreCase) && a.Port == existing.Port))
+                    {
+                        _discoveredAgents.RemoveAt(i);
+                    }
+                }
+
+                // Add newly discovered devices or update existing
+                foreach (var agent in filteredAgents)
+                {
+                    var existing = _discoveredAgents.FirstOrDefault(a => a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) && a.Port == agent.Port);
+                    if (existing == null)
+                    {
+                        _discoveredAgents.Add(agent);
+                    }
+                    else if (existing.MachineName != agent.MachineName || existing.Version != agent.Version)
+                    {
+                        int index = _discoveredAgents.IndexOf(existing);
+                        _discoveredAgents[index] = agent;
+                    }
+                }
+
+                UpdateEmptyState();
+                UpdateDiscoveredCount();
+            });
         }
         catch
         {
-            ConnectionStatusText.Text = "LAN scan complete";
+            // Transient discovery scan errors ignored gracefully
         }
         finally
         {
-            ScanLanBtn.IsEnabled = true;
+            _isScanning = false;
         }
     }
 
-    private void DiscoveredPcsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void UpdateEmptyState()
     {
-        if (DiscoveredPcsComboBox.SelectedItem is DiscoveredAgent agent)
+        if (_discoveredAgents.Count == 0)
         {
-            TargetIpTextBox.Text = agent.IpAddress;
-            TargetPortTextBox.Text = agent.Port.ToString();
+            DiscoveredEmptyStateBorder.Visibility = Visibility.Visible;
+            DiscoveredPcsListBox.Visibility = Visibility.Collapsed;
         }
+        else
+        {
+            DiscoveredEmptyStateBorder.Visibility = Visibility.Collapsed;
+            DiscoveredPcsListBox.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void UpdateDiscoveredCount()
+    {
+        if (_discoveredAgents.Count == 0)
+        {
+            DiscoveredDevicesCountText.Text = "Scanning local network...";
+        }
+        else if (_discoveredAgents.Count == 1)
+        {
+            DiscoveredDevicesCountText.Text = "1 remote device found on LAN";
+        }
+        else
+        {
+            DiscoveredDevicesCountText.Text = $"{_discoveredAgents.Count} remote devices found on LAN";
+        }
+    }
+
+    // =========================================================================
+    // DISCOVERED CARD SELECTION / CONNECTION LOGIC
+    // Top inputs are NOT modified when connecting via discovered cards.
+    // Instead, a dedicated PIN popup is displayed.
+    // =========================================================================
+
+    private void DiscoveredPcsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DiscoveredPcsListBox.SelectedItem is DiscoveredAgent agent)
+        {
+            DiscoveredPcsListBox.SelectedItem = null;
+            OpenPinModalForAgent(agent);
+        }
+    }
+
+    private void DiscoveredPcsListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Double-click is handled by SelectionChanged or CardConnectBtn_Click
+    }
+
+    private void CardConnectBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            OpenPinModalForAgent(agent);
+        }
+    }
+
+    private void OpenPinModalForAgent(DiscoveredAgent agent)
+    {
+        _modalTargetAgent = agent;
+        ModalDeviceNameText.Text = agent.MachineName;
+        ModalDeviceIpText.Text = agent.IpAddress;
+        ModalPinTextBox.Text = string.Empty;
+        ModalStatusText.Visibility = Visibility.Collapsed;
+        ModalStatusText.Text = string.Empty;
+        ModalConnectBtn.IsEnabled = true;
+
+        PinModalOverlay.Visibility = Visibility.Visible;
+        ModalPinTextBox.Focus();
+    }
+
+    private void ClosePinModal_Click(object sender, RoutedEventArgs e)
+    {
+        PinModalOverlay.Visibility = Visibility.Collapsed;
+        _modalTargetAgent = null;
+    }
+
+    private void PinModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Close modal when user clicks outside the modal card (on the backdrop)
+        if (e.OriginalSource == PinModalOverlay)
+        {
+            ClosePinModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && PinModalOverlay.Visibility == Visibility.Visible)
+        {
+            ClosePinModal_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+    }
+
+    private void ModalPinTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ModalConnectBtn_Click(this, new RoutedEventArgs());
+        }
+        else if (e.Key == Key.Escape)
+        {
+            ClosePinModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private async void ModalConnectBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_modalTargetAgent == null) return;
+
+        string pin = ModalPinTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(pin))
+        {
+            ModalStatusText.Text = "Please enter the 6-digit security PIN.";
+            ModalStatusText.Visibility = Visibility.Visible;
+            ModalPinTextBox.Focus();
+            return;
+        }
+
+        ModalConnectBtn.IsEnabled = false;
+        ModalStatusText.Visibility = Visibility.Collapsed;
+        SetStatus($"Connecting to {_modalTargetAgent.MachineName}...", Color.FromRgb(59, 130, 246));
+
+        var client = new ControllerClient();
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void StateHandler(ControllerState state, string message)
+        {
+            if (state == ControllerState.Connected)
+            {
+                tcs.TrySetResult(true);
+            }
+            else if (state == ControllerState.Error || state == ControllerState.Disconnected)
+            {
+                tcs.TrySetResult(false);
+            }
+        }
+
+        client.StateChanged += StateHandler;
+
+        string ip = _modalTargetAgent.IpAddress;
+        int port = _modalTargetAgent.Port;
+        string machineName = _modalTargetAgent.MachineName;
+
+        try
+        {
+            await client.ConnectAsync(ip, port, pin);
+            bool connected = await tcs.Task;
+
+            client.StateChanged -= StateHandler;
+
+            if (connected)
+            {
+                SetStatus($"Connected to {machineName}", Color.FromRgb(16, 185, 129));
+                PinModalOverlay.Visibility = Visibility.Collapsed;
+
+                var sessionWin = new SessionWindow(client, machineName, $"{ip}:{port}");
+                sessionWin.Show();
+                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
+            }
+            else
+            {
+                SetStatus("Connection failed", Color.FromRgb(239, 68, 68));
+                ModalStatusText.Text = "Could not connect. Check PIN or ensure RemoteLAN is running.";
+                ModalStatusText.Visibility = Visibility.Visible;
+                client.Dispose();
+                ModalConnectBtn.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            client.StateChanged -= StateHandler;
+            SetStatus($"Error: {ex.Message}", Color.FromRgb(239, 68, 68));
+            ModalStatusText.Text = $"Connection error: {ex.Message}";
+            ModalStatusText.Visibility = Visibility.Visible;
+            client.Dispose();
+            ModalConnectBtn.IsEnabled = true;
+        }
+    }
+
+    // =========================================================================
+    // MANUAL TOP HEADER CONNECTION LOGIC
+    // =========================================================================
+
+    private void ConnectionInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ConnectRemoteBtn_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void SetStatus(string message, Color dotColor)
+    {
+        ConnectionStatusText.Text = message;
+        ConnectionStatusDot.Background = new SolidColorBrush(dotColor);
     }
 
     private async void ConnectRemoteBtn_Click(object sender, RoutedEventArgs e)
     {
-        string ip = TargetIpTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(ip))
+        string rawAddress = TargetIpTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(rawAddress))
         {
-            MessageBox.Show("Please enter the remote PC's IP address.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Please enter the remote PC's IP address or select a discovered device.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        if (!int.TryParse(TargetPortTextBox.Text.Trim(), out int port) || port <= 0 || port > 65535)
+        string ip = rawAddress;
+        int port = ProtocolConstants.DefaultPort;
+
+        // Support optional IP:Port format without exposing port boxes in standard UI
+        if (rawAddress.Contains(':'))
         {
-            port = ProtocolConstants.DefaultPort;
-            TargetPortTextBox.Text = port.ToString();
+            var parts = rawAddress.Split(':');
+            ip = parts[0].Trim();
+            if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int customPort) && customPort > 0 && customPort <= 65535)
+            {
+                port = customPort;
+            }
         }
 
         string pin = RemotePinTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(pin))
         {
             MessageBox.Show("Please enter the remote PC's Security PIN.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            RemotePinTextBox.Focus();
             return;
         }
 
         ConnectRemoteBtn.IsEnabled = false;
-        ConnectionStatusText.Text = $"Connecting to {ip}:{port}...";
+        SetStatus($"Connecting to {ip}...", Color.FromRgb(59, 130, 246)); // Blue
 
         var client = new ControllerClient();
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -259,29 +518,28 @@ public partial class MainWindow : Window
 
             if (connected)
             {
-                ConnectionStatusText.Text = "Connected!";
-
-                string displayName = (DiscoveredPcsComboBox.SelectedItem is DiscoveredAgent agent && agent.IpAddress == ip)
-                    ? agent.MachineName
-                    : ip;
+                string displayName = _discoveredAgents.FirstOrDefault(a => a.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase))?.MachineName ?? ip;
+                SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129)); // Green
 
                 var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}");
                 sessionWin.Show();
-                ConnectionStatusText.Text = "Ready to connect";
+                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
             }
             else
             {
-                ConnectionStatusText.Text = "Connection failed";
-                MessageBox.Show($"Could not connect to {ip}:{port}. Check that the remote PC has RemoteLAN running and the PIN is correct.", "Connection Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                SetStatus("Connection failed", Color.FromRgb(239, 68, 68)); // Red
+                MessageBox.Show($"Could not connect to {ip}. Please check that RemoteLAN is active on that machine and the Security PIN is correct.", "Connection Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 client.Dispose();
+                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
             }
         }
         catch (Exception ex)
         {
             client.StateChanged -= StateHandler;
-            ConnectionStatusText.Text = $"Error: {ex.Message}";
+            SetStatus($"Error: {ex.Message}", Color.FromRgb(239, 68, 68)); // Red
             MessageBox.Show($"Connection error: {ex.Message}", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
             client.Dispose();
+            SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
         }
         finally
         {
@@ -291,7 +549,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        base.OnClosed(e);
+        _discoveryTimer.Stop();
         _server.Dispose();
+        base.OnClosed(e);
     }
 }

@@ -3,191 +3,589 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:RemoteLAN"
         mc:Ignorable="d"
-        Title="RemoteLAN" Height="580" Width="880"
+        Title="RemoteLAN" Height="640" Width="980"
+        MinHeight="560" MinWidth="880"
         WindowStartupLocation="CenterScreen"
         Background="#F8FAFC" Foreground="#0F172A"
         FontFamily="Segoe UI"
-        ResizeMode="CanMinimize">
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        ResizeMode="CanResizeWithGrip"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <!-- Primary Action Button Style -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1E40AF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#94A3B8"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-        <!-- Top Header Bar -->
-        <Border Grid.Row="0" Margin="0,0,0,20">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+        <!-- Secondary Neutral Button Style -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F1F5F9"/>
+            <Setter Property="Foreground" Value="#1E293B"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#CBD5E1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.6"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="12" Height="12" CornerRadius="6" x:Name="HostStatusDot" Background="#10B981" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="RemoteLAN" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                    <Border Background="#E0F2FE" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v0.3.0" FontSize="11" FontWeight="SemiBold" Foreground="#0284C7"/>
+        <!-- Modern Input Box Style (No vertical clipping, razor sharp) -->
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="False" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#94A3B8"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#2563EB"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Crisp Square Device Tile Style (No blurry drop shadows) -->
+        <Style x:Key="DeviceTileBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                    <Setter Property="BorderBrush" Value="#2563EB"/>
+                    <Setter Property="BorderThickness" Value="1.5"/>
+                    <Setter Property="Background" Value="#EFF6FF"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True"/>
+                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="#93C5FD"/>
+                    <Setter Property="Background" Value="#F8FAFC"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Discovered PC ListBox Item Container -->
+        <Style x:Key="DiscoveredDeviceItemStyle" TargetType="ListBoxItem">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Square Card DataTemplate for Discovered PCs (Razor Sharp) -->
+        <DataTemplate x:Key="DiscoveredDeviceCardTemplate">
+            <Border Style="{StaticResource DeviceTileBorderStyle}" Width="162" Height="172"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Online Status Badge -->
+                    <Border Grid.Row="0" HorizontalAlignment="Right" Background="#ECFDF5" CornerRadius="4" Padding="5,2" Margin="0,0,0,2"
+                            SnapsToDevicePixels="True">
+                        <TextBlock Text="ONLINE" FontSize="9" FontWeight="Bold" Foreground="#059669"
+                                   TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                     </Border>
-                    <TextBlock Text="• LAN Remote Desktop" FontSize="13" Foreground="#64748B" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="HostStatusText" Text="Host Ready (Port 9191)" FontSize="12" FontWeight="SemiBold" Foreground="#059669" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+                    <!-- Workstation Icon Badge -->
+                    <Border Grid.Row="1" Width="48" Height="48" CornerRadius="24" Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1" 
+                            HorizontalAlignment="Center" Margin="0,0,0,8" SnapsToDevicePixels="True" UseLayoutRounding="True">
+                        <Path Data="M 2,3 L 22,3 C 22.6,3 23,3.4 23,4 L 23,17 C 23,17.6 22.6,18 22,18 L 15,18 L 16,21 L 18,21 C 18.6,21 19,21.4 19,22 C 19,22.6 18.6,23 18,23 L 6,23 C 5.4,23 5,22.6 5,22 C 5,21.4 5.4,21 6,21 L 8,21 L 9,18 L 2,18 C 1.4,18 1,17.6 1,17 L 1,4 C 1,3.4 1.4,3 2,3 Z M 3,5 L 3,16 L 21,16 L 21,5 Z" 
+                              Fill="#2563EB" Stretch="Uniform" Width="22" Height="22" SnapsToDevicePixels="True"/>
+                    </Border>
 
-        <!-- Dual AnyDesk Dashboard Cards -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="20"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+                    <!-- Device Name -->
+                    <TextBlock Grid.Row="2" Text="{Binding MachineName}" FontSize="13" FontWeight="Bold" Foreground="#0F172A" 
+                               HorizontalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="142"
+                               TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
 
-            <!-- Card 1: THIS PC (Incoming Host) -->
-            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="12" BorderBrush="#E2E8F0" BorderThickness="1" Padding="20">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                        <TextBlock Text="💻" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="THIS PC (Your Address)" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                    </StackPanel>
+                    <!-- IP Address -->
+                    <TextBlock Grid.Row="3" Text="{Binding IpAddress}" FontSize="11" Foreground="#64748B" 
+                               HorizontalAlignment="Center" TextAlignment="Center" Margin="0,3,0,0"
+                               TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
 
-                    <!-- IP Selection -->
-                    <TextBlock Text="YOUR IP ADDRESS" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
-                    <Grid Margin="0,0,0,14">
+                    <!-- Connect Prompt Button -->
+                    <Button Grid.Row="4" Content="Connect" Style="{StaticResource SecondaryButtonStyle}"
+                            Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Foreground="#2563EB"
+                            HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                            Click="CardConnectBtn_Click"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Left Pane: My PC Info -->
+            <ColumnDefinition Width="284"/>
+            <!-- Right Pane: Main Workspace -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ================================================================= -->
+        <!-- LEFT VERTICAL PANE: MY PC INFO & STATUS                            -->
+        <!-- ================================================================= -->
+        <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0" Padding="20"
+                SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/> <!-- App Brand & Live Status -->
+                    <RowDefinition Height="Auto"/> <!-- Separator -->
+                    <RowDefinition Height="*"/>    <!-- Device Identity & Security PIN -->
+                    <RowDefinition Height="Auto"/> <!-- Active Incoming Session Banner -->
+                    <RowDefinition Height="Auto"/> <!-- Footer Note -->
+                </Grid.RowDefinitions>
+
+                <!-- Header: App Name & Status -->
+                <StackPanel Grid.Row="0">
+                    <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <ComboBox x:Name="LocalIpsComboBox" Background="#F8FAFC" Foreground="#0F172A" BorderBrush="#CBD5E1" 
-                                  Padding="8,6" FontSize="12" VerticalContentAlignment="Center"/>
-                        <Button Grid.Column="1" Content="Copy IP" Margin="8,0,0,0" Padding="12,6" Background="#F1F5F9" Foreground="#1E293B"
-                                BorderBrush="#CBD5E1" BorderThickness="1" Click="CopyIp_Click" Cursor="Hand" FontWeight="Medium"/>
-                    </Grid>
-
-                    <!-- Security PIN -->
-                    <TextBlock Text="YOUR SECURITY PIN" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
-                    <Grid Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Background="#F8FAFC" CornerRadius="8" BorderBrush="#CBD5E1" BorderThickness="1" Padding="10,6">
-                            <TextBlock x:Name="PinTextBlock" Text="123456" FontSize="22" FontWeight="Bold" Foreground="#0284C7" 
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <!-- Brand Icon -->
+                        <Border Grid.Column="0" Width="36" Height="36" CornerRadius="9" Background="#2563EB" Margin="0,0,10,0" VerticalAlignment="Center"
+                                SnapsToDevicePixels="True">
+                            <Path Data="M 2,3 L 22,3 C 22.6,3 23,3.4 23,4 L 23,17 C 23,17.6 22.6,18 22,18 L 15,18 L 16,21 L 18,21 C 18.6,21 19,21.4 19,22 C 19,22.6 18.6,23 18,23 L 6,23 C 5.4,23 5,22.6 5,22 C 5,21.4 5.4,21 6,21 L 8,21 L 9,18 L 2,18 C 1.4,18 1,17.6 1,17 L 1,4 C 1,3.4 1.4,3 2,3 Z M 3,5 L 3,16 L 21,16 L 21,5 Z"
+                                  Fill="#FFFFFF" Stretch="Uniform" Width="18" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center" SnapsToDevicePixels="True"/>
                         </Border>
 
-                        <Button Grid.Column="1" Content="Copy" Margin="8,0,0,0" Padding="12,6" Background="#F1F5F9" Foreground="#1E293B"
-                                BorderBrush="#CBD5E1" BorderThickness="1" Click="CopyPin_Click" Cursor="Hand" FontWeight="Medium"/>
-                        <Button Grid.Column="2" Content="Regenerate" Margin="8,0,0,0" Padding="12,6" Background="#F1F5F9" Foreground="#1E293B"
-                                BorderBrush="#CBD5E1" BorderThickness="1" Click="RegeneratePin_Click" Cursor="Hand" FontWeight="Medium"/>
+                        <!-- Brand Name & Version -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
+                                           TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
+                                <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
+                                    <TextBlock Text="v0.3.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
+                        </StackPanel>
                     </Grid>
 
-                    <!-- Host Info Stats -->
-                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,14">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="DEVICE NAME" FontSize="10" FontWeight="Bold" Foreground="#64748B"/>
-                                <TextBlock x:Name="HostDeviceNameText" Text="DESKTOP-LOCAL" FontSize="12" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,2,0,0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="CAPTURE ENGINE" FontSize="10" FontWeight="Bold" Foreground="#64748B"/>
-                                <TextBlock x:Name="HostEngineText" Text="DXGI Desktop" FontSize="12" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
+                    <!-- Host Status Pill -->
+                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="14" Padding="10,5" Margin="0,14,0,0"
+                            SnapsToDevicePixels="True">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="8" Height="8" CornerRadius="4" x:Name="HostStatusDot" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="HostStatusText" Text="Ready for connections" FontSize="11" FontWeight="SemiBold" Foreground="#065F46" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
+                </StackPanel>
 
-                    <!-- Active Incoming Client Info -->
-                    <Border x:Name="ActiveClientCard" Visibility="Collapsed" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="12,8">
-                        <Grid>
+                <!-- Divider -->
+                <Separator Grid.Row="1" Background="#F1F5F9" Margin="0,16,0,16"/>
+
+                <!-- Middle Content: This PC Info -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <!-- Device Name Card -->
+                        <TextBlock Text="THIS DEVICE" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,16"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="M 4,6 L 20,6 C 20.6,6 21,6.4 21,7 L 21,16 L 3,16 L 3,7 C 3,6.4 3.4,6 4,6 Z M 1,17 L 23,17 C 23.6,17 24,17.4 24,18 L 24,19 C 24,19.6 23.6,20 23,20 L 1,20 C 0.4,20 0,19.6 0,19 L 0,18 C 0,17.4 0.4,17 1,17 Z"
+                                      Fill="#64748B" Stretch="Uniform" Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center" SnapsToDevicePixels="True"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="HostDeviceNameText" Text="DESKTOP-LOCAL" FontSize="13" FontWeight="Bold" Foreground="#1E293B" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Local Computer" FontSize="11" Foreground="#94A3B8" Margin="0,1,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Local IP Address -->
+                        <TextBlock Text="YOUR IP ADDRESS" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="CONNECTED VIEWER" FontSize="10" FontWeight="Bold" Foreground="#059669"/>
-                                <TextBlock x:Name="ActiveClientEndpointText" Text="192.168.1.50" FontSize="12" FontWeight="SemiBold" Foreground="#065F46" Margin="0,2,0,0"/>
-                            </StackPanel>
-                            <Button Grid.Column="1" Content="Disconnect" Padding="10,4" Background="#EF4444" Foreground="#FFFFFF"
-                                    BorderThickness="0" Click="DisconnectIncomingClient_Click" Cursor="Hand" FontWeight="SemiBold" FontSize="11"/>
+                            <ComboBox x:Name="LocalIpsComboBox" Background="#F8FAFC" Foreground="#0F172A" BorderBrush="#CBD5E1" 
+                                      Padding="8,0" FontSize="12" VerticalContentAlignment="Center" Height="38"
+                                      SnapsToDevicePixels="True"/>
+                            <Button Grid.Column="1" Content="Copy" Margin="6,0,0,0" Style="{StaticResource SecondaryButtonStyle}" 
+                                    Height="38" Click="CopyIp_Click"/>
                         </Grid>
-                    </Border>
-                </StackPanel>
-            </Border>
 
-            <!-- Card 2: REMOTE PC (Connect Out) -->
-            <Border Grid.Column="2" Background="#FFFFFF" CornerRadius="12" BorderBrush="#E2E8F0" BorderThickness="1" Padding="20">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                        <TextBlock Text="🌐" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="REMOTE PC (Connect)" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                        <!-- Security PIN -->
+                        <TextBlock Text="YOUR SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1.5" CornerRadius="8" Padding="10,8" Margin="0,0,0,8"
+                                SnapsToDevicePixels="True">
+                            <TextBlock x:Name="PinTextBlock" Text="123456" FontSize="26" FontWeight="Bold" Foreground="#0284C7" 
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Consolas, Segoe UI"
+                                       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
+                        </Border>
+
+                        <!-- PIN Action Buttons -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Copy PIN" Margin="0,0,4,0" Height="34" 
+                                    Style="{StaticResource SecondaryButtonStyle}" Click="CopyPin_Click"/>
+                            <Button Grid.Column="1" Content="New PIN" Margin="4,0,0,0" Height="34" 
+                                    Style="{StaticResource SecondaryButtonStyle}" Click="RegeneratePin_Click"/>
+                        </Grid>
                     </StackPanel>
+                </ScrollViewer>
 
-                    <!-- Auto-Discovery -->
-                    <TextBlock Text="DISCOVERED LAN PCS" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
-                    <Grid Margin="0,0,0,14">
+                <!-- Active Incoming Client Card (Conditional) -->
+                <Border Grid.Row="3" x:Name="ActiveClientCard" Visibility="Collapsed" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,10,0,0"
+                        SnapsToDevicePixels="True">
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <ComboBox x:Name="DiscoveredPcsComboBox" Background="#F8FAFC" Foreground="#0F172A" BorderBrush="#CBD5E1" 
-                                  Padding="8,6" FontSize="12" VerticalContentAlignment="Center"
-                                  SelectionChanged="DiscoveredPcsComboBox_SelectionChanged"/>
-                        <Button Grid.Column="1" x:Name="ScanLanBtn" Content="Scan LAN" Margin="8,0,0,0" Padding="12,6" Background="#F1F5F9" Foreground="#1E293B"
-                                BorderBrush="#CBD5E1" BorderThickness="1" Click="ScanLanBtn_Click" Cursor="Hand" FontWeight="Medium"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="CONNECTED VIEWER" FontSize="10" FontWeight="Bold" Foreground="#059669"/>
+                            <TextBlock x:Name="ActiveClientEndpointText" Text="192.168.1.50" FontSize="12" FontWeight="SemiBold" Foreground="#065F46" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Disconnect" Padding="10,4" Background="#EF4444" Foreground="#FFFFFF"
+                                BorderThickness="0" Click="DisconnectIncomingClient_Click" Cursor="Hand" FontWeight="SemiBold" FontSize="11"/>
                     </Grid>
+                </Border>
 
-                    <!-- Target IP & Port -->
-                    <Grid Margin="0,0,0,14">
+                <!-- Reassuring Footnote -->
+                <TextBlock Grid.Row="4" Text="Direct LAN Connection • Private" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- ================================================================= -->
+        <!-- RIGHT PANE: TOP CONNECTION BAR, DISCOVERED PCS, & BOTTOM STATUS BAR-->
+        <!-- ================================================================= -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <!-- Row 0: Top Horizontal Connection Header -->
+                <RowDefinition Height="Auto"/>
+                <!-- Row 1: Discovered PCs Grid Workspace -->
+                <RowDefinition Height="*"/>
+                <!-- Row 2: Bottom Status Bar -->
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top Horizontal Connection Bar (Manual IP Entry) -->
+            <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="24,16"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Connect to Remote Device" FontSize="14" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10"/>
+
+                    <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="260"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="TARGET IP" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,4"/>
-                            <TextBox x:Name="TargetIpTextBox" Text="127.0.0.1" Background="#F8FAFC" Foreground="#0F172A" 
-                                     BorderBrush="#CBD5E1" Padding="8,6" FontSize="13" VerticalContentAlignment="Center"/>
+
+                        <!-- Target Address Field -->
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="REMOTE ADDRESS" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
+                            <TextBox x:Name="TargetIpTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="40"
+                                     KeyDown="ConnectionInput_KeyDown"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="PORT" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,4"/>
-                            <TextBox x:Name="TargetPortTextBox" Text="9191" Background="#F8FAFC" Foreground="#0F172A" 
-                                     BorderBrush="#CBD5E1" Padding="8,6" FontSize="13" VerticalContentAlignment="Center"/>
+
+                        <!-- Remote PIN Field -->
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,5"/>
+                            <TextBox x:Name="RemotePinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="40"
+                                     FontWeight="SemiBold" KeyDown="ConnectionInput_KeyDown"/>
                         </StackPanel>
+
+                        <!-- Connect Action Button -->
+                        <Button Grid.Column="4" x:Name="ConnectRemoteBtn" Content="Connect ➔" 
+                                Style="{StaticResource PrimaryButtonStyle}" Height="40" VerticalAlignment="Bottom"
+                                Click="ConnectRemoteBtn_Click"/>
                     </Grid>
+                </Grid>
+            </Border>
 
-                    <!-- Remote PIN -->
-                    <TextBlock Text="REMOTE SECURITY PIN" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,4"/>
-                    <TextBox x:Name="RemotePinTextBox" Background="#F8FAFC" Foreground="#0F172A" 
-                             BorderBrush="#CBD5E1" Padding="8,6" FontSize="14" FontWeight="SemiBold" VerticalContentAlignment="Center" Margin="0,0,0,18"/>
+            <!-- Discovered Devices Central Workspace -->
+            <Grid Grid.Row="1" Margin="24">
+                <Grid.RowDefinitions>
+                    <!-- Workspace Title & Scanning Indicator -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Discovered Cards Area -->
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                    <!-- Connect Button -->
-                    <Button x:Name="ConnectRemoteBtn" Content="Connect to Remote PC" Click="ConnectRemoteBtn_Click" Padding="16,10"
-                            Background="#2563EB" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" BorderThickness="0" Cursor="Hand" Margin="0,0,0,10"/>
+                <!-- Workspace Section Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                    <TextBlock x:Name="ConnectionStatusText" Text="Ready to connect" FontSize="12" Foreground="#64748B" HorizontalAlignment="Center"/>
-                </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Discovered Devices" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/>
+                        <TextBlock Text="Computers running RemoteLAN on your local network • Click any device to connect" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Auto-Discovery Active Badge -->
+                    <Border Grid.Column="1" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="12" Padding="10,5" VerticalAlignment="Center"
+                            SnapsToDevicePixels="True">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="7" Height="7" CornerRadius="3.5" Background="#2563EB" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Auto-discovering LAN" FontSize="11" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Discovered PCs Area: Empty State or Grid of Square Cards -->
+                <Grid Grid.Row="1">
+                    <!-- Friendly Empty State -->
+                    <Border x:Name="DiscoveredEmptyStateBorder" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" 
+                            CornerRadius="12" Padding="32" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Visibility="Collapsed"
+                            SnapsToDevicePixels="True">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Border Width="56" Height="56" CornerRadius="28" Background="#F1F5F9" HorizontalAlignment="Center" Margin="0,0,0,14"
+                                    SnapsToDevicePixels="True">
+                                <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 12,6 C 15.31,6 18,8.69 18,12 C 18,15.31 15.31,18 12,18 C 8.69,18 6,15.31 6,12 C 6,8.69 8.69,6 12,6 Z M 12,10 C 13.1,10 14,10.9 14,12 C 14,13.1 13.1,14 12,14 C 10.9,14 10,13.1 10,12 Z"
+                                      Fill="#94A3B8" Stretch="Uniform" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True"/>
+                            </Border>
+                            <TextBlock Text="Searching for devices on your network..." FontSize="15" FontWeight="SemiBold" Foreground="#1E293B" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Other PCs running RemoteLAN will automatically appear here as square tiles. Ensure both computers are connected to the same LAN." 
+                                       FontSize="12" Foreground="#64748B" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="18"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Discovered PCs Grid (WrapPanel) -->
+                    <ListBox x:Name="DiscoveredPcsListBox" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ItemContainerStyle="{StaticResource DiscoveredDeviceItemStyle}"
+                             ItemTemplate="{StaticResource DiscoveredDeviceCardTemplate}"
+                             SelectionChanged="DiscoveredPcsListBox_SelectionChanged"
+                             MouseDoubleClick="DiscoveredPcsListBox_MouseDoubleClick"
+                             SnapsToDevicePixels="True" UseLayoutRounding="True">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                    </ListBox>
+                </Grid>
+            </Grid>
+
+            <!-- ============================================================= -->
+            <!-- BOTTOM STATUS BAR (Ready to Connect Indicator)                -->
+            <!-- ============================================================= -->
+            <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="24,9"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- Status Indicator & Text -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Discovered Devices Summary -->
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="8" Height="8" CornerRadius="4" x:Name="ConnectionStatusDot" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="ConnectionStatusText" Text="Ready to connect" FontSize="12" FontWeight="Medium" Foreground="#475569" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" x:Name="DiscoveredDevicesCountText" Text="Scanning local network..." FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                </Grid>
             </Border>
         </Grid>
 
-        <!-- Footer -->
-        <Border Grid.Row="2" Margin="0,16,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="RemoteLAN • Direct Socket Transport • Zero Cloud Relay" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="Works both ways: PC A ⇄ PC B" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
+        <!-- ================================================================= -->
+        <!-- PIN POPUP MODAL OVERLAY (Used when connecting via Discovered Cards)-->
+        <!-- ================================================================= -->
+        <Grid Grid.ColumnSpan="2" x:Name="PinModalOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1000" MouseDown="PinModalOverlay_MouseDown"
+              SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Header: Title & Close 'X' -->
+                        <RowDefinition Height="Auto"/> <!-- Target Device Card Info -->
+                        <RowDefinition Height="Auto"/> <!-- PIN Input Field -->
+                        <RowDefinition Height="Auto"/> <!-- Error / Status Feedback -->
+                        <RowDefinition Height="Auto"/> <!-- Action Buttons: Connect / Cancel -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 0: Header with Close Button -->
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="Connect to Remote Device" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
+                                Cursor="Hand" Click="ClosePinModal_Click"/>
+                    </Grid>
+
+                    <!-- Row 1: Target Device Info Badge -->
+                    <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,16,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Border Grid.Column="0" Width="38" Height="38" CornerRadius="19" Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Path Data="M 2,3 L 22,3 C 22.6,3 23,3.4 23,4 L 23,17 C 23,17.6 22.6,18 22,18 L 15,18 L 16,21 L 18,21 C 18.6,21 19,21.4 19,22 C 19,22.6 18.6,23 18,23 L 6,23 C 5.4,23 5,22.6 5,22 C 5,21.4 5.4,21 6,21 L 8,21 L 9,18 L 2,18 C 1.4,18 1,17.6 1,17 L 1,4 C 1,3.4 1.4,3 2,3 Z M 3,5 L 3,16 L 21,16 L 21,5 Z" 
+                                      Fill="#2563EB" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True"/>
+                            </Border>
+                            
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="ModalDeviceNameText" Text="DESKTOP-TARGET" FontSize="14" FontWeight="Bold" Foreground="#0F172A" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="ModalDeviceIpText" Text="192.168.1.50" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Row 2: PIN Input Field -->
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="SECURITY PIN" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="42"
+                                 FontSize="18" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
+                                 KeyDown="ModalPinTextBox_KeyDown"/>
+                        <TextBlock Text="Enter the 6-digit security PIN displayed on the remote PC." FontSize="11" Foreground="#94A3B8" Margin="0,5,0,0"/>
+                    </StackPanel>
+
+                    <!-- Row 3: Modal Status / Error Feedback -->
+                    <TextBlock Grid.Row="3" x:Name="ModalStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#DC2626" 
+                               HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
+
+                    <!-- Row 4: Action Buttons -->
+                    <Grid Grid.Row="4" Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="ClosePinModal_Click"/>
+                        <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect ➔" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

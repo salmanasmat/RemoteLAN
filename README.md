@@ -9,11 +9,14 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **AnyDesk-Style Unified App**: Both PC A and PC B install and run the exact same `RemoteLAN` application.
 - **Bidirectional Control**: Connect from PC A to PC B, or from PC B to PC A, or simultaneously.
 - **Zero Cloud Relay**: Direct TCP socket connections between machines on your trusted local area network.
-- **LAN Auto-Discovery**: Automatically discovers running RemoteLAN PCs on your subnet via lightweight UDP broadcast (port `9192`) — select any machine from a dropdown with zero manual IP entry.
+- **Continuous Auto-Discovery**: Automatically discovers active RemoteLAN PCs on your subnet in the background and presents them as interactive squared tiles (AnyDesk-style) without requiring manual scanning.
+- **Clean Modern Light Mode UI**:
+  - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and 6-digit security PIN with one-click copy and regeneration.
+  - **Top Horizontal Header**: Seamless remote address and PIN inputs with immediate connect action.
+  - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click or double-click to connect.
 - **Fast Screen Streaming**: DXGI Desktop Duplication engine with automatic GDI `BitBlt` fallback, encoded as JPEG at configurable quality and frame rate.
 - **Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordinate scaling.
 - **PIN Handshake Security**: Lightweight 6-digit PIN authentication handshake before streaming or control begins.
-- **Clean Light Mode Interface**: Modern, crisp light mode UI with "This PC" and "Remote PC" panels.
 - **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `0.3.0`).
 
 ---
@@ -27,7 +30,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (26 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, and bidirectional test suite (27 tests)
 ```
 
 ### Network Protocols
@@ -86,12 +89,12 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 
 #### How it Works:
 1. **On PC A**:
-   - The left card (**This PC**) displays PC A's IP address and a 6-digit security PIN.
+   - The left sidebar displays PC A's IP address and a 6-digit security PIN.
 2. **On PC B**:
-   - The left card displays PC B's IP address and its own 6-digit security PIN.
+   - The left sidebar displays PC B's IP address and its own 6-digit security PIN.
 3. **To connect PC A → PC B**:
-   - On PC A, click **Scan LAN** (or pick PC B from the **Discovered LAN PCs** dropdown).
-   - Enter PC B's PIN and click **Connect to Remote PC**.
+   - On PC A, PC B automatically appears as a square device tile in the discovered devices grid.
+   - Click PC B's tile (which automatically fills the top remote address), enter PC B's PIN, and click **Connect ➔**.
    - A dedicated remote desktop session window opens with full mouse and keyboard control!
 4. **To connect PC B → PC A**:
    - Exact same process in reverse!

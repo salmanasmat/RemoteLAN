@@ -60,7 +60,7 @@ public sealed class AgentServer : IDisposable
         _listener.Start();
         _discoveryResponder.Start();
 
-        StatusChanged?.Invoke($"Listening on port {_port} ({_capturer.EngineName})");
+        StatusChanged?.Invoke("Ready for connections");
         _listenerTask = Task.Run(() => AcceptConnectionsAsync(_serverCts.Token));
     }
 
@@ -218,7 +218,7 @@ public sealed class AgentServer : IDisposable
             client.Close();
             FpsUpdated?.Invoke(0.0);
             ClientDisconnected?.Invoke();
-            StatusChanged?.Invoke($"Listening on port {_port} ({_capturer.EngineName})");
+            StatusChanged?.Invoke("Ready for connections");
         }
     }
 

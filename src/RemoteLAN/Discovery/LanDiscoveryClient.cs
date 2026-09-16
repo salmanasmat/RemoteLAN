@@ -15,10 +15,33 @@ public sealed class LanDiscoveryClient
         _discoveryPort = discoveryPort;
     }
 
-    public async Task<IReadOnlyList<DiscoveredAgent>> DiscoverAgentsAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DiscoveredAgent>> DiscoverAgentsAsync(
+        TimeSpan? timeout = null, 
+        bool filterSelf = false, 
+        CancellationToken cancellationToken = default)
     {
         TimeSpan scanTimeout = timeout ?? TimeSpan.FromMilliseconds(1500);
         var discoveredMap = new Dictionary<string, DiscoveredAgent>(StringComparer.OrdinalIgnoreCase);
+
+        var localIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "127.0.0.1", "localhost", "::1" };
+        if (filterSelf)
+        {
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                    foreach (var unicast in ni.GetIPProperties().UnicastAddresses)
+                    {
+                        if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            localIps.Add(unicast.Address.ToString());
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(scanTimeout);
@@ -33,8 +56,12 @@ public sealed class LanDiscoveryClient
         try
         {
             await udpClient.SendAsync(requestBytes, requestBytes.Length, new IPEndPoint(IPAddress.Broadcast, _discoveryPort)).ConfigureAwait(false);
-            // Also send to loopback for local development testing
-            await udpClient.SendAsync(requestBytes, requestBytes.Length, new IPEndPoint(IPAddress.Loopback, _discoveryPort)).ConfigureAwait(false);
+            
+            // Send to loopback only if not filtering self (e.g. for developer unit tests)
+            if (!filterSelf)
+            {
+                await udpClient.SendAsync(requestBytes, requestBytes.Length, new IPEndPoint(IPAddress.Loopback, _discoveryPort)).ConfigureAwait(false);
+            }
         }
         catch { }
 
@@ -59,6 +86,23 @@ public sealed class LanDiscoveryClient
 
                 if (DiscoveredAgent.TryParse(responseText, senderIp, out var agent) && agent != null)
                 {
+                    if (filterSelf)
+                    {
+                        // 1. Ignore loopback or any local interface IP
+                        if (IPAddress.IsLoopback(result.RemoteEndPoint.Address) || 
+                            localIps.Contains(senderIp) || 
+                            localIps.Contains(agent.IpAddress))
+                        {
+                            continue;
+                        }
+
+                        // 2. Ignore local machine name
+                        if (string.Equals(agent.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                    }
+
                     string key = $"{agent.IpAddress}:{agent.Port}";
                     discoveredMap[key] = agent;
                 }
@@ -73,7 +117,12 @@ public sealed class LanDiscoveryClient
             // Ignore socket read errors during scan
         }
 
-        return discoveredMap.Values.OrderBy(a => a.MachineName).ToList();
+        // Deduplicate agents by MachineName so multi-homed devices (e.g. WiFi and Ethernet) are not listed redundantly
+        return discoveredMap.Values
+            .GroupBy(a => a.MachineName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(a => a.MachineName)
+            .ToList();
     }
 
     private static IEnumerable<IPAddress> GetSubnetBroadcastAddresses()

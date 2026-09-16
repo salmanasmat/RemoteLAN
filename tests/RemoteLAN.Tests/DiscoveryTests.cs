@@ -59,4 +59,27 @@ public class DiscoveryTests
             responder.Stop();
         }
     }
+
+    [Fact]
+    public async Task EndToEnd_LanDiscovery_WithFilterSelf_Excludes_Local_Machine()
+    {
+        const int testTcpPort = 9195;
+        const int testDiscoveryPort = 9196;
+
+        using var responder = new AgentDiscoveryResponder(testTcpPort, testDiscoveryPort);
+        responder.Start();
+
+        try
+        {
+            var discoveryClient = new LanDiscoveryClient(testDiscoveryPort);
+            var agents = await discoveryClient.DiscoverAgentsAsync(TimeSpan.FromSeconds(2), filterSelf: true);
+
+            // Self-filtering must exclude the local machine running on this host
+            Assert.DoesNotContain(agents, a => a.Port == testTcpPort || string.Equals(a.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            responder.Stop();
+        }
+    }
 }
