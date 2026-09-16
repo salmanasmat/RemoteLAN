@@ -276,15 +276,6 @@
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
                         </StackPanel>
                     </Grid>
-
-                    <!-- Host Status Pill -->
-                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="14" Padding="10,5" Margin="0,14,0,0"
-                            SnapsToDevicePixels="True">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Width="8" Height="8" CornerRadius="4" x:Name="HostStatusDot" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="HostStatusText" Text="Ready for connections" FontSize="11" FontWeight="SemiBold" Foreground="#065F46" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
 
                 <!-- Divider -->

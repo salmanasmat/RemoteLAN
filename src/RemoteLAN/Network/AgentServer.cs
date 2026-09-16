@@ -60,7 +60,7 @@ public sealed class AgentServer : IDisposable
         _listener.Start();
         _discoveryResponder.Start();
 
-        StatusChanged?.Invoke("Ready for connections");
+        StatusChanged?.Invoke("Ready");
         _listenerTask = Task.Run(() => AcceptConnectionsAsync(_serverCts.Token));
     }
 
@@ -218,7 +218,7 @@ public sealed class AgentServer : IDisposable
             client.Close();
             FpsUpdated?.Invoke(0.0);
             ClientDisconnected?.Invoke();
-            StatusChanged?.Invoke("Ready for connections");
+            StatusChanged?.Invoke("Ready");
         }
     }
 

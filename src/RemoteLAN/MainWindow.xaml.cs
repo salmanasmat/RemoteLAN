@@ -126,36 +126,15 @@ public partial class MainWindow : Window
 
     private void Server_StatusChanged(string status)
     {
-        Dispatcher.Invoke(() =>
-        {
-            // Always display clean, consumer-friendly status without ports or technical engines
-            if (status.Contains("Stopped", StringComparison.OrdinalIgnoreCase))
-            {
-                HostStatusText.Text = "Host Offline";
-                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
-            }
-            else if (status.Contains("Connecting", StringComparison.OrdinalIgnoreCase) ||
-                     status.Contains("Connected", StringComparison.OrdinalIgnoreCase))
-            {
-                HostStatusText.Text = "Session Active";
-                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)); // Blue
-            }
-            else
-            {
-                HostStatusText.Text = "Ready for connections";
-                HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Emerald Green
-            }
-        });
     }
 
     private void Server_ClientConnected(string endpoint)
     {
         Dispatcher.Invoke(() =>
         {
-            HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)); // Blue
-            HostStatusText.Text = "Session Active";
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
+            SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
         });
     }
 
@@ -163,9 +142,8 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            HostStatusDot.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Green
-            HostStatusText.Text = "Ready for connections";
             ActiveClientCard.Visibility = Visibility.Collapsed;
+            SetStatus("Ready to connect", Color.FromRgb(16, 185, 129)); // Green
         });
     }
 
@@ -418,7 +396,7 @@ public partial class MainWindow : Window
 
                 var sessionWin = new SessionWindow(client, machineName, $"{ip}:{port}");
                 sessionWin.Show();
-                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
+                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
             }
             else
             {
@@ -523,14 +501,14 @@ public partial class MainWindow : Window
 
                 var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}");
                 sessionWin.Show();
-                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
+                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
             }
             else
             {
                 SetStatus("Connection failed", Color.FromRgb(239, 68, 68)); // Red
                 MessageBox.Show($"Could not connect to {ip}. Please check that RemoteLAN is active on that machine and the Security PIN is correct.", "Connection Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 client.Dispose();
-                SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
+                SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
             }
         }
         catch (Exception ex)
@@ -539,7 +517,7 @@ public partial class MainWindow : Window
             SetStatus($"Error: {ex.Message}", Color.FromRgb(239, 68, 68)); // Red
             MessageBox.Show($"Connection error: {ex.Message}", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
             client.Dispose();
-            SetStatus("Ready for connections", Color.FromRgb(16, 185, 129));
+            SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
         }
         finally
         {
