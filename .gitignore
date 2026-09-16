@@ -1,0 +1,38 @@
+## Visual Studio & .NET build artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+## Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+
+## Dotnet & C# crash dumps and temp files
+*.tmp
+*.log
+*.cache
+*.opendb
+*.dbmdl
+
+## Windows & OS artifacts
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## Package caches
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+project.lock.json
+project.assets.json

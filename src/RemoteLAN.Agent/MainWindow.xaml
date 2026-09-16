@@ -1,0 +1,114 @@
+<Window x:Class="RemoteLAN.Agent.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="RemoteLAN Agent" Height="440" Width="520"
+        WindowStartupLocation="CenterScreen"
+        Background="#F8FAFC" Foreground="#0F172A"
+        FontFamily="Segoe UI"
+        ResizeMode="CanMinimize">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="12" Height="12" CornerRadius="6" x:Name="StatusDot" Background="#10B981" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                <TextBlock Text="RemoteLAN Agent" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                <Border Background="#E0F2FE" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="v0.2.0" FontSize="11" FontWeight="SemiBold" Foreground="#0284C7"/>
+                </Border>
+            </StackPanel>
+            <TextBlock x:Name="StatusText" Text="Listening on port 9191" FontSize="13" Foreground="#64748B" Margin="22,4,0,0"/>
+        </StackPanel>
+
+        <!-- Main Card -->
+        <Border Grid.Row="1" Background="#FFFFFF" CornerRadius="12" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
+            <StackPanel>
+                <!-- Local IP Address Selection -->
+                <TextBlock Text="LOCAL IP ADDRESS (FOR CONTROLLER TO CONNECT)" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="LocalIpsComboBox" Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" 
+                              Padding="8,6" FontSize="13" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Copy IP" Margin="8,0,0,0" Padding="14,8" Background="#F1F5F9" Foreground="#1E293B"
+                            BorderBrush="#CBD5E1" BorderThickness="1" Click="CopyIp_Click" Cursor="Hand" FontWeight="Medium"/>
+                </Grid>
+
+                <!-- PIN Section -->
+                <TextBlock Text="SECURITY PIN" FontSize="11" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#F8FAFC" CornerRadius="8" BorderBrush="#CBD5E1" BorderThickness="1" Padding="12,6">
+                        <TextBlock x:Name="PinTextBlock" Text="123456" FontSize="24" FontWeight="Bold" Foreground="#0284C7" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <Button Grid.Column="1" Content="Copy" Margin="8,0,0,0" Padding="14,8" Background="#F1F5F9" Foreground="#1E293B"
+                            BorderBrush="#CBD5E1" BorderThickness="1" Click="CopyPin_Click" Cursor="Hand" FontWeight="Medium"/>
+                    <Button Grid.Column="2" Content="Regenerate" Margin="8,0,0,0" Padding="14,8" Background="#F1F5F9" Foreground="#1E293B"
+                            BorderBrush="#CBD5E1" BorderThickness="1" Click="RegeneratePin_Click" Cursor="Hand" FontWeight="Medium"/>
+                </Grid>
+
+                <!-- Engine & Screen Info -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="CAPTURE ENGINE" FontSize="11" FontWeight="Bold" Foreground="#64748B"/>
+                        <TextBlock x:Name="EngineTextBlock" Text="DXGI Desktop Duplication" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="RESOLUTION &amp; FPS" FontSize="11" FontWeight="Bold" Foreground="#64748B"/>
+                        <TextBlock x:Name="ScreenInfoTextBlock" Text="1920x1080 (0 FPS)" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Connected Client Info -->
+                <Border x:Name="ConnectedClientPanel" Visibility="Collapsed" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,4,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="CONNECTED CLIENT" FontSize="10" FontWeight="Bold" Foreground="#059669"/>
+                            <TextBlock x:Name="ConnectedClientText" Text="192.168.1.50" FontSize="13" FontWeight="SemiBold" Foreground="#065F46" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Disconnect" Padding="12,6" Background="#EF4444" Foreground="#FFFFFF"
+                                BorderThickness="0" Click="DisconnectClient_Click" Cursor="Hand" FontWeight="SemiBold"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="RemoteLAN • Direct Socket Transport" VerticalAlignment="Center" FontSize="12" Foreground="#94A3B8"/>
+            <Button Grid.Column="1" x:Name="ToggleServerBtn" Content="Stop Server" Padding="18,8" Background="#0F172A" Foreground="#FFFFFF"
+                    BorderThickness="0" Click="ToggleServer_Click" Cursor="Hand" FontWeight="SemiBold"/>
+        </Grid>
+    </Grid>
+</Window>
