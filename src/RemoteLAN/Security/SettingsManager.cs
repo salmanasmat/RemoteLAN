@@ -32,8 +32,10 @@ public sealed class SettingsManager
 
     public sealed class DiscoveredDeviceHistoryItem
     {
+        public string MachineId { get; set; } = string.Empty;
         public string MachineName { get; set; } = string.Empty;
         public string IpAddress { get; set; } = string.Empty;
+        public string InterfaceType { get; set; } = "Ethernet";
         public int Port { get; set; } = 9191;
         public string Version { get; set; } = string.Empty;
         public DateTime LastSeenUtc { get; set; } = DateTime.UtcNow;
@@ -406,7 +408,39 @@ public sealed class SettingsManager
     public void UpdateDeviceInHistory(DiscoveredAgent agent)
     {
         if (agent == null) return;
-        UpdateDeviceInHistory(agent.MachineName, agent.IpAddress, agent.Port, agent.Version);
+        lock (_lock)
+        {
+            var existing = _data.DeviceHistory.FirstOrDefault(d =>
+                (!string.IsNullOrEmpty(agent.MachineId) && !string.IsNullOrEmpty(d.MachineId) && string.Equals(d.MachineId, agent.MachineId, StringComparison.OrdinalIgnoreCase)) ||
+                string.Equals(d.MachineName, agent.MachineName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(d.IpAddress, agent.IpAddress, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                existing.MachineId = agent.MachineId;
+                existing.MachineName = agent.MachineName;
+                existing.IpAddress = agent.IpAddress;
+                existing.InterfaceType = agent.InterfaceType;
+                existing.Port = agent.Port;
+                existing.Version = agent.Version;
+                existing.LastSeenUtc = agent.LastSeen;
+            }
+            else
+            {
+                _data.DeviceHistory.Add(new DiscoveredDeviceHistoryItem
+                {
+                    MachineId = agent.MachineId,
+                    MachineName = agent.MachineName,
+                    IpAddress = agent.IpAddress,
+                    InterfaceType = agent.InterfaceType,
+                    Port = agent.Port,
+                    Version = agent.Version,
+                    LastSeenUtc = agent.LastSeen
+                });
+            }
+
+            SaveLocked();
+        }
     }
 
     public void RemoveDeviceFromHistory(string target)
@@ -421,9 +455,15 @@ public sealed class SettingsManager
 
     public void RemoveDeviceFromHistory(string? machineName, string? ipAddress, int port)
     {
+        RemoveDeviceFromHistory(machineName, ipAddress, port, null);
+    }
+
+    public void RemoveDeviceFromHistory(string? machineName, string? ipAddress, int port, string? machineId)
+    {
         lock (_lock)
         {
             int removed = _data.DeviceHistory.RemoveAll(d =>
+                (!string.IsNullOrWhiteSpace(machineId) && string.Equals(d.MachineId, machineId, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrWhiteSpace(machineName) && string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrWhiteSpace(ipAddress) && string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase) && (port <= 0 || d.Port == port)));
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using RemoteLAN.Input;
 using RemoteLAN.Network;
@@ -110,13 +111,26 @@ public partial class SessionWindow : Window
         });
     }
 
+    private bool IsRemoteInputEnabled => MenuSendRemoteInputToggle?.IsChecked == true;
+
     private async void ScreenViewport_MouseMove(object sender, MouseEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        if (OsPasswordPromptOverlay.Visibility != Visibility.Visible && !ViewportContainer.IsFocused)
+        {
+            ViewportContainer.Focus();
+        }
 
-        if (_mouseThrottleStopwatch.ElapsedMilliseconds < 16) return;
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         Point pos = e.GetPosition(ScreenViewport);
+
+        // In fullscreen mode, hovering near the top edge peeks the toolbar
+        if (_isFullscreen && pos.Y <= 4)
+        {
+            TopToolbar.Visibility = Visibility.Visible;
+        }
+
+        if (_mouseThrottleStopwatch.ElapsedMilliseconds < 16) return;
         if (pos == _lastSentMousePos) return;
 
         var (inBounds, normX, normY) = CoordinateTranslator.TranslateToNormalized(
@@ -136,7 +150,7 @@ public partial class SessionWindow : Window
 
     private async void ScreenViewport_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         ViewportContainer.Focus();
 
@@ -171,7 +185,7 @@ public partial class SessionWindow : Window
 
     private async void ScreenViewport_MouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         ScreenViewport.ReleaseMouseCapture();
 
@@ -192,14 +206,17 @@ public partial class SessionWindow : Window
 
     private async void ScreenViewport_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         await _client.SendMouseWheelAsync(e.Delta);
     }
 
-    private async void ViewportContainer_PreviewKeyDown(object sender, KeyEventArgs e)
+    private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        // If OS password prompt modal is open, let the user type locally into the password box
+        if (OsPasswordPromptOverlay.Visibility == Visibility.Visible) return;
+
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         // Ignore auto-repeat to prevent flood of duplicate key downs
         if (e.IsRepeat) return;
@@ -215,9 +232,11 @@ public partial class SessionWindow : Window
         }
     }
 
-    private async void ViewportContainer_PreviewKeyUp(object sender, KeyEventArgs e)
+    private async void Window_PreviewKeyUp(object sender, KeyEventArgs e)
     {
-        if (EnableInputCheckBox.IsChecked != true || _client.State != ControllerState.Connected) return;
+        if (OsPasswordPromptOverlay.Visibility == Visibility.Visible) return;
+
+        if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
         int vk = KeyInterop.VirtualKeyFromKey(key);
@@ -230,38 +249,96 @@ public partial class SessionWindow : Window
         }
     }
 
+    private void TopPeekTrigger_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (_isFullscreen)
+        {
+            TopToolbar.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void TopToolbar_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_isFullscreen)
+        {
+            if (ActionsBtn.ContextMenu != null && ActionsBtn.ContextMenu.IsOpen)
+            {
+                return;
+            }
+            TopToolbar.Visibility = Visibility.Collapsed;
+        }
+    }
+
     private void ToggleFullscreenBtn_Click(object sender, RoutedEventArgs e)
     {
         if (!_isFullscreen)
         {
-            WindowStyle = WindowStyle.None;
-            WindowState = WindowState.Maximized;
-            _isFullscreen = true;
-            ToggleFullscreenBtn.Content = "Restore Window";
+            EnterFullscreen();
         }
         else
         {
-            WindowStyle = WindowStyle.SingleBorderWindow;
-            WindowState = WindowState.Normal;
-            _isFullscreen = false;
-            ToggleFullscreenBtn.Content = "Fullscreen";
+            ExitFullscreen();
         }
+    }
+
+    private void EnterFullscreen()
+    {
+        WindowStyle = WindowStyle.None;
+        WindowState = WindowState.Maximized;
+        _isFullscreen = true;
+
+        TopToolbarRow.Height = new GridLength(0);
+        StatusBarRow.Height = new GridLength(0);
+        StatusBarBorder.Visibility = Visibility.Collapsed;
+
+        Grid.SetRowSpan(TopToolbar, 3);
+        TopToolbar.VerticalAlignment = VerticalAlignment.Top;
+        TopToolbar.Visibility = Visibility.Collapsed;
+        TopPeekTrigger.Visibility = Visibility.Visible;
+
+        ToggleFullscreenBtn.Content = "Restore Window";
+        ViewportContainer.Focus();
+    }
+
+    private void ExitFullscreen()
+    {
+        Grid.SetRowSpan(TopToolbar, 1);
+        TopToolbar.VerticalAlignment = VerticalAlignment.Stretch;
+        TopToolbarRow.Height = GridLength.Auto;
+        StatusBarRow.Height = GridLength.Auto;
+
+        TopToolbar.Visibility = Visibility.Visible;
+        StatusBarBorder.Visibility = Visibility.Visible;
+        TopPeekTrigger.Visibility = Visibility.Collapsed;
+
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        WindowState = WindowState.Normal;
+        _isFullscreen = false;
+
+        ToggleFullscreenBtn.Content = "Fullscreen";
+        ViewportContainer.Focus();
     }
 
     private async void SendCadBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_client.State != ControllerState.Connected) return;
 
-        SendCadBtn.IsEnabled = false;
+        var menuItem = sender as MenuItem;
+        if (menuItem != null) menuItem.IsEnabled = false;
+
         try
         {
             await _client.SendCtrlAltDelAsync();
             SessionStatusText.Text = "Sent Ctrl+Alt+Del / Wake command to remote PC";
         }
+        catch (Exception ex)
+        {
+            SessionStatusText.Text = $"Failed to send Ctrl+Alt+Del: {ex.Message}";
+        }
         finally
         {
             await Task.Delay(500);
-            SendCadBtn.IsEnabled = true;
+            if (menuItem != null) menuItem.IsEnabled = true;
         }
     }
 
@@ -408,13 +485,13 @@ public partial class SessionWindow : Window
         }
     }
 
-    private void PowerActionsBtn_Click(object sender, RoutedEventArgs e)
+    private void ActionsBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (PowerActionsBtn.ContextMenu != null)
+        if (ActionsBtn.ContextMenu != null)
         {
-            PowerActionsBtn.ContextMenu.PlacementTarget = PowerActionsBtn;
-            PowerActionsBtn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            PowerActionsBtn.ContextMenu.IsOpen = true;
+            ActionsBtn.ContextMenu.PlacementTarget = ActionsBtn;
+            ActionsBtn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            ActionsBtn.ContextMenu.IsOpen = true;
         }
     }
 
@@ -531,11 +608,25 @@ public partial class SessionWindow : Window
         catch { }
     }
 
+    private async Task HandleSessionEndLockAsync()
+    {
+        if (MenuLockOnDisconnectToggle.IsChecked && _client.State == ControllerState.Connected)
+        {
+            try
+            {
+                await _client.SendPowerActionAsync(PowerActionType.Lock);
+                await Task.Delay(150);
+            }
+            catch { }
+        }
+    }
+
     private async void DisconnectBtn_Click(object sender, RoutedEventArgs e)
     {
         _isUserClosing = true;
         _client.StateChanged -= Client_StateChanged;
         await ReleaseActiveInputsAsync();
+        await HandleSessionEndLockAsync();
         _client.Disconnect();
         Close();
     }
@@ -548,6 +639,20 @@ public partial class SessionWindow : Window
             Key.Left or Key.Right or Key.Up or Key.Down or Key.RightCtrl or Key.RightAlt => true,
             _ => false
         };
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_isUserClosing && MenuLockOnDisconnectToggle.IsChecked && _client.State == ControllerState.Connected)
+        {
+            _isUserClosing = true;
+            try
+            {
+                _client.SendPowerActionAsync(PowerActionType.Lock).AsTask().Wait(250);
+            }
+            catch { }
+        }
+        base.OnClosing(e);
     }
 
     protected override void OnClosed(EventArgs e)

@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "1.1.4"
+#define MyAppVersion "1.1.6"
 #define MyAppPublisher "Salman Asmat"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -52,7 +52,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --background"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: unchecked nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [Code]
 // Forcefully terminate any running instance of RemoteLAN
@@ -102,9 +102,17 @@ begin
     begin
       Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR """' + ExpandConstant('{app}\{#MyAppExeName}') + '"" --background" /SC ONLOGON /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
+  end;
+end;
 
-    // Start automatically in the background without displaying the main application window
-    Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--background', '', SW_HIDE, ewNoWait, ResultCode);
+// If user finishes setup without launching the UI, ensure background instance is running
+procedure DeinitializeSetup();
+var
+  ResultCode: Integer;
+begin
+  if not CheckForMutexes('Local\RemoteLAN_SingleInstance_Mutex') then
+  begin
+    ShellExec('open', ExpandConstant('{app}\{#MyAppExeName}'), '--background', '', SW_HIDE, ewNoWait, ResultCode);
   end;
 end;
 

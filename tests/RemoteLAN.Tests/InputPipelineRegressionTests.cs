@@ -15,7 +15,8 @@ public class InputPipelineRegressionTests
     [Fact]
     public void InputInjector_KeyTracking_SuppressesDuplicateKeyDown()
     {
-        using var injector = new InputInjector();
+        var sentInputs = new List<Input.NativeMethods.INPUT>();
+        using var injector = new InputInjector(inputs => { lock (sentInputs) sentInputs.AddRange(inputs); return (uint)inputs.Length; });
         injector.ResetSession(1);
 
         // KeyDown for 'A' (0x41)
@@ -37,7 +38,8 @@ public class InputPipelineRegressionTests
     [Fact]
     public void InputInjector_UnpressedKeyUp_IsIgnored()
     {
-        using var injector = new InputInjector();
+        var sentInputs = new List<Input.NativeMethods.INPUT>();
+        using var injector = new InputInjector(inputs => { lock (sentInputs) sentInputs.AddRange(inputs); return (uint)inputs.Length; });
         injector.ResetSession(1);
 
         // Inject KeyUp without prior KeyDown
@@ -49,7 +51,8 @@ public class InputPipelineRegressionTests
     [Fact]
     public void InputInjector_SessionReset_ReleasesHeldKeysAndButtons()
     {
-        using var injector = new InputInjector();
+        var sentInputs = new List<Input.NativeMethods.INPUT>();
+        using var injector = new InputInjector(inputs => { lock (sentInputs) sentInputs.AddRange(inputs); return (uint)inputs.Length; });
         injector.ResetSession(1);
 
         // Press multiple keys: Ctrl (0x11), Shift (0x10), Alt (0x12), 'A' (0x41)
@@ -70,7 +73,8 @@ public class InputPipelineRegressionTests
     [Fact]
     public void InputInjector_SessionScoping_DiscardsStaleEvents()
     {
-        using var injector = new InputInjector();
+        var sentInputs = new List<Input.NativeMethods.INPUT>();
+        using var injector = new InputInjector(inputs => { lock (sentInputs) sentInputs.AddRange(inputs); return (uint)inputs.Length; });
 
         // Queue events under session 1
         injector.ResetSession(1);

@@ -6,12 +6,14 @@ namespace RemoteLAN.Protocol.Messages;
 public sealed class AuthRequest
 {
     public string Pin { get; set; } = string.Empty;
+    public string ClientMachineName { get; set; } = string.Empty;
 
     public byte[] Serialize()
     {
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
         writer.Write(Pin ?? string.Empty);
+        writer.Write(ClientMachineName ?? string.Empty);
         writer.Flush();
         return ms.ToArray();
     }
@@ -20,10 +22,15 @@ public sealed class AuthRequest
     {
         using var ms = new MemoryStream(data);
         using var reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
-        return new AuthRequest
+        var req = new AuthRequest
         {
             Pin = reader.ReadString()
         };
+        if (ms.Position < ms.Length)
+        {
+            req.ClientMachineName = reader.ReadString();
+        }
+        return req;
     }
 }
 

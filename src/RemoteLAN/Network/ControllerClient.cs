@@ -40,6 +40,19 @@ public sealed class ControllerClient : IDisposable
         }
     }
 
+    public async Task SendPinAsync(string pin)
+    {
+        NetworkStream? stream;
+        lock (_lock)
+        {
+            stream = _networkStream;
+        }
+
+        if (stream == null) return;
+        var authReq = new AuthRequest { Pin = pin, ClientMachineName = Environment.MachineName };
+        await _writer.WriteFrameAsync(stream, MessageType.AuthRequest, authReq.Serialize(), _sessionCts?.Token ?? CancellationToken.None).ConfigureAwait(false);
+    }
+
     public async Task ConnectAsync(string host, int port, string pin, CancellationToken externalCt = default)
     {
         Disconnect();
@@ -65,7 +78,7 @@ public sealed class ControllerClient : IDisposable
             }
 
             // Send PIN Handshake
-            var authReq = new AuthRequest { Pin = pin };
+            var authReq = new AuthRequest { Pin = pin, ClientMachineName = Environment.MachineName };
             await _writer.WriteFrameAsync(_networkStream, MessageType.AuthRequest, authReq.Serialize(), ct).ConfigureAwait(false);
 
             // Await Auth Response

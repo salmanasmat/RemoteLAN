@@ -28,17 +28,32 @@ public sealed class InputInjector : IInputInjector
     // Thread-safe state tracking collections
     private readonly ConcurrentDictionary<int, bool> _pressedKeys = new();
     private readonly ConcurrentDictionary<MouseButtonType, bool> _pressedButtons = new();
+    private readonly Func<NativeMethods.INPUT[], uint>? _sendInputOverride;
     private volatile int _currentSessionId;
     private bool _disposed;
 
-    public InputInjector()
+    public InputInjector() : this(null)
     {
+    }
+
+    internal InputInjector(Func<NativeMethods.INPUT[], uint>? sendInputOverride)
+    {
+        _sendInputOverride = sendInputOverride;
         _workerThread = new Thread(ProcessQueueLoop)
         {
             IsBackground = true,
             Name = "RemoteLAN_InputInjectorWorker"
         };
         _workerThread.Start();
+    }
+
+    private uint PerformSendInput(NativeMethods.INPUT[] inputs)
+    {
+        if (_sendInputOverride != null)
+        {
+            return _sendInputOverride(inputs);
+        }
+        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
     }
 
     private void ProcessQueueLoop()
@@ -69,6 +84,7 @@ public sealed class InputInjector : IInputInjector
 
     private void EnsureInputDesktop(bool force = false)
     {
+        if (_sendInputOverride != null) return;
         if (force || _desktopCheckStopwatch.ElapsedMilliseconds >= 200)
         {
             _desktopCheckStopwatch.Restart();
@@ -112,7 +128,7 @@ public sealed class InputInjector : IInputInjector
 
             try
             {
-                uint sent = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                uint sent = PerformSendInput(new[] { input });
                 if (sent == 0)
                 {
                     Debug.WriteLine($"[InputInjector] SendInput mouse move failed: {Marshal.GetLastWin32Error()}");
@@ -175,7 +191,7 @@ public sealed class InputInjector : IInputInjector
 
             try
             {
-                uint sent = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                uint sent = PerformSendInput(new[] { input });
                 if (sent == 0)
                 {
                     Debug.WriteLine($"[InputInjector] SendInput mouse button failed: {Marshal.GetLastWin32Error()}");
@@ -219,7 +235,7 @@ public sealed class InputInjector : IInputInjector
 
             try
             {
-                uint sent = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                uint sent = PerformSendInput(new[] { input });
                 if (sent == 0)
                 {
                     Debug.WriteLine($"[InputInjector] SendInput mouse wheel failed: {Marshal.GetLastWin32Error()}");
@@ -279,7 +295,7 @@ public sealed class InputInjector : IInputInjector
 
             try
             {
-                uint sent = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                uint sent = PerformSendInput(new[] { input });
                 if (sent == 0)
                 {
                     int err = Marshal.GetLastWin32Error();
@@ -338,7 +354,7 @@ public sealed class InputInjector : IInputInjector
                     : null;
                 try
                 {
-                    NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                    PerformSendInput(new[] { input });
                 }
                 catch { }
                 finally
@@ -389,7 +405,7 @@ public sealed class InputInjector : IInputInjector
                     : null;
                 try
                 {
-                    NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+                    PerformSendInput(new[] { input });
                 }
                 catch { }
                 finally

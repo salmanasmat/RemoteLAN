@@ -25,6 +25,31 @@ public partial class App : Application
             }
         }
 
+        // If running as standard user, automatically prompt for Administrator elevation
+        if (!Security.DesktopManager.IsAdministrator && !Security.DesktopManager.IsSystem)
+        {
+            try
+            {
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = Environment.ProcessPath ?? Environment.GetCommandLineArgs()[0],
+                    UseShellExecute = true,
+                    Verb = "runas"
+                };
+                foreach (var arg in e.Args)
+                {
+                    startInfo.ArgumentList.Add(arg);
+                }
+                System.Diagnostics.Process.Start(startInfo);
+                Shutdown();
+                return;
+            }
+            catch
+            {
+                // User rejected UAC prompt; continue as standard user
+            }
+        }
+
         if (Security.DesktopManager.IsAdministrator && !Security.DesktopManager.IsSystem)
         {
             string configPath = Security.SettingsManager.OverrideFilePath ?? Security.SettingsManager.GetDefaultFilePath();

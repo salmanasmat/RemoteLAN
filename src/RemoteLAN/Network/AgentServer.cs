@@ -41,6 +41,8 @@ public sealed class AgentServer : IDisposable
     public event Action<string>? ClientConnected;
     public event Action? ClientDisconnected;
     public event Action<double>? FpsUpdated;
+    public event Action<IncomingConnectionEventArgs>? IncomingConnectionRequested;
+    public event Action? IncomingConnectionDismissed;
 
     public PinManager PinManager => _pinManager;
 
@@ -217,22 +219,114 @@ public sealed class AgentServer : IDisposable
                 return;
             }
 
-            if (!_pinManager.ValidatePin(authReq.Pin))
-            {
-                _settingsManager?.RecordFailedAttempt(clientIp);
+            bool authenticated = false;
+            string clientMachineName = string.IsNullOrWhiteSpace(authReq.ClientMachineName) ? clientIp : authReq.ClientMachineName;
 
-                var failResp = new AuthResponse
+            if (!string.IsNullOrEmpty(authReq.Pin))
+            {
+                if (_pinManager.ValidatePin(authReq.Pin))
                 {
-                    Success = false,
-                    Message = "Invalid PIN."
-                };
-                await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, failResp.Serialize(), ct).ConfigureAwait(false);
+                    authenticated = true;
+                }
+                else
+                {
+                    _settingsManager?.RecordFailedAttempt(clientIp);
+                    var failResp = new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Invalid PIN."
+                    };
+                    await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, failResp.Serialize(), ct).ConfigureAwait(false);
+                    client.Close();
+                    StatusChanged?.Invoke($"Rejected connection from {endpoint} (Incorrect PIN)");
+                    return;
+                }
+            }
+            else
+            {
+                // Client connected with empty PIN: request approval from remote user on this PC
+                var tcsApproval = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var reqArgs = new IncomingConnectionEventArgs(endpoint, clientIp, clientMachineName, tcsApproval);
+
+                try
+                {
+                    IncomingConnectionRequested?.Invoke(reqArgs);
+                    StatusChanged?.Invoke($"Incoming connection request from {clientMachineName} ({clientIp})...");
+
+                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+                    // Watch for client disconnect
+                    var pollTask = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            while (!linkedCts.Token.IsCancellationRequested)
+                            {
+                                await Task.Delay(300, linkedCts.Token).ConfigureAwait(false);
+                                if (!client.Connected || (client.Client.Poll(1000, SelectMode.SelectRead) && client.Client.Available == 0))
+                                {
+                                    tcsApproval.TrySetCanceled();
+                                    break;
+                                }
+                            }
+                        }
+                        catch { }
+                    }, linkedCts.Token);
+
+                    bool accepted = false;
+                    try
+                    {
+                        using (linkedCts.Token.Register(() => tcsApproval.TrySetCanceled()))
+                        {
+                            accepted = await tcsApproval.Task.ConfigureAwait(false);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (timeoutCts.IsCancellationRequested)
+                        {
+                            var timeoutResp = new AuthResponse
+                            {
+                                Success = false,
+                                Message = "Connection request timed out (no response from remote user)."
+                            };
+                            await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, timeoutResp.Serialize(), ct).ConfigureAwait(false);
+                        }
+                        client.Close();
+                        return;
+                    }
+
+                    if (accepted)
+                    {
+                        authenticated = true;
+                    }
+                    else
+                    {
+                        var declineResp = new AuthResponse
+                        {
+                            Success = false,
+                            Message = "Connection was declined by the remote user."
+                        };
+                        await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, declineResp.Serialize(), ct).ConfigureAwait(false);
+                        client.Close();
+                        StatusChanged?.Invoke($"Declined incoming connection from {clientMachineName} ({clientIp})");
+                        return;
+                    }
+                }
+                finally
+                {
+                    IncomingConnectionDismissed?.Invoke();
+                }
+            }
+
+            if (!authenticated)
+            {
                 client.Close();
-                StatusChanged?.Invoke($"Rejected connection from {endpoint} (Incorrect PIN)");
                 return;
             }
 
-            // PIN Verified! Reset any failed attempts
+            // PIN or Approval Verified! Reset any failed attempts
             _settingsManager?.ResetFailedAttempts(clientIp);
 
             // Send success response with screen geometry
@@ -435,4 +529,24 @@ public sealed class AgentServer : IDisposable
         _capturer.Dispose();
         _inputInjector.Dispose();
     }
+}
+
+public sealed class IncomingConnectionEventArgs : EventArgs
+{
+    private readonly TaskCompletionSource<bool> _tcs;
+
+    public string Endpoint { get; }
+    public string ClientIp { get; }
+    public string ClientMachineName { get; }
+
+    public IncomingConnectionEventArgs(string endpoint, string clientIp, string clientMachineName, TaskCompletionSource<bool> tcs)
+    {
+        Endpoint = endpoint;
+        ClientIp = clientIp;
+        ClientMachineName = clientMachineName;
+        _tcs = tcs;
+    }
+
+    public void Accept() => _tcs.TrySetResult(true);
+    public void Reject() => _tcs.TrySetResult(false);
 }

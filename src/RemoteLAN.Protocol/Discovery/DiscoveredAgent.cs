@@ -1,20 +1,39 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 
 namespace RemoteLAN.Protocol.Discovery;
 
 public sealed class DiscoveredAgent : INotifyPropertyChanged
 {
+    private string _machineId = string.Empty;
     private string _machineName = string.Empty;
     private string _ipAddress = string.Empty;
     private int _port;
     private string _version = string.Empty;
     private bool _isOnline = true;
     private DateTime _lastSeen = DateTime.UtcNow;
+    private AgentEndpointInfo? _selectedEndpoint;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    public ObservableCollection<AgentEndpointInfo> Endpoints { get; } = new();
+
+    public string MachineId
+    {
+        get => string.IsNullOrEmpty(_machineId) ? _machineName : _machineId;
+        set
+        {
+            if (_machineId != value)
+            {
+                _machineId = value;
+                OnPropertyChanged(nameof(MachineId));
+                OnPropertyChanged(nameof(HeaderBackgroundBrush));
+            }
+        }
+    }
 
     public string MachineName
     {
@@ -33,18 +52,59 @@ public sealed class DiscoveredAgent : INotifyPropertyChanged
 
     public string IpAddress
     {
-        get => _ipAddress;
+        get => _selectedEndpoint?.IpAddress ?? _ipAddress;
         set
         {
             if (_ipAddress != value)
             {
                 _ipAddress = value;
+                if (!string.IsNullOrEmpty(value) && !Endpoints.Any(e => e.IpAddress.Equals(value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    AddOrUpdateEndpoint(value, "Ethernet");
+                }
+                else
+                {
+                    var existing = Endpoints.FirstOrDefault(e => e.IpAddress.Equals(value, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null && _selectedEndpoint != existing)
+                    {
+                        _selectedEndpoint = existing;
+                        OnPropertyChanged(nameof(SelectedEndpoint));
+                        OnPropertyChanged(nameof(InterfaceType));
+                        OnPropertyChanged(nameof(IsEthernet));
+                    }
+                }
                 OnPropertyChanged(nameof(IpAddress));
                 OnPropertyChanged(nameof(DisplayText));
-                OnPropertyChanged(nameof(HeaderBackgroundBrush));
             }
         }
     }
+
+    public AgentEndpointInfo? SelectedEndpoint
+    {
+        get => _selectedEndpoint;
+        set
+        {
+            if (_selectedEndpoint != value)
+            {
+                _selectedEndpoint = value;
+                if (value != null)
+                {
+                    _ipAddress = value.IpAddress;
+                }
+                OnPropertyChanged(nameof(SelectedEndpoint));
+                OnPropertyChanged(nameof(IpAddress));
+                OnPropertyChanged(nameof(InterfaceType));
+                OnPropertyChanged(nameof(IsEthernet));
+                OnPropertyChanged(nameof(DisplayText));
+            }
+        }
+    }
+
+    public string InterfaceType => _selectedEndpoint?.InterfaceType ?? "Ethernet";
+
+    public bool IsEthernet => string.Equals(InterfaceType, "Ethernet", StringComparison.OrdinalIgnoreCase);
+
+    public bool HasMultipleEndpoints => Endpoints.Count > 1;
 
     public int Port
     {
@@ -121,7 +181,8 @@ public sealed class DiscoveredAgent : INotifyPropertyChanged
                 "#A0897B", // Warm clay
                 "#9C7E92"  // Dusty mauve
             };
-            int hash = Math.Abs((MachineName + IpAddress).GetHashCode());
+            string key = string.IsNullOrEmpty(MachineId) ? (MachineName + IpAddress) : MachineId;
+            int hash = Math.Abs(key.GetHashCode());
             return palette[hash % palette.Length];
         }
     }
@@ -129,6 +190,51 @@ public sealed class DiscoveredAgent : INotifyPropertyChanged
     public string StatusDotBrush => IsOnline ? "#22C55E" : "#94A3B8"; // Green when online, Slate Gray when offline
     public string StatusText => IsOnline ? "Online" : $"Offline • Last seen {LastSeen:g}";
     public double CardOpacity => IsOnline ? 1.0 : 0.65;
+
+    public void AddOrUpdateEndpoint(string ip, string interfaceType, DateTime? lastSeen = null)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return;
+
+        DateTime seenTime = lastSeen ?? DateTime.UtcNow;
+        var existing = Endpoints.FirstOrDefault(e => e.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            existing.InterfaceType = interfaceType;
+            existing.LastSeen = seenTime;
+        }
+        else
+        {
+            var newEndpoint = new AgentEndpointInfo
+            {
+                IpAddress = ip,
+                InterfaceType = interfaceType,
+                LastSeen = seenTime
+            };
+            Endpoints.Add(newEndpoint);
+            OnPropertyChanged(nameof(HasMultipleEndpoints));
+        }
+
+        LastSeen = seenTime;
+
+        // Auto-select preferred endpoint:
+        // 1. If nothing selected yet or selected endpoint is no longer in Endpoints
+        // 2. Or if current selection is not Ethernet but an Ethernet endpoint is now available
+        if (SelectedEndpoint == null || !Endpoints.Contains(SelectedEndpoint) ||
+            (!SelectedEndpoint.IsEthernet && Endpoints.Any(e => e.IsEthernet)))
+        {
+            // Prefer Ethernet over WiFi, then most recently seen
+            var preferred = Endpoints
+                .OrderByDescending(e => e.IsEthernet)
+                .ThenByDescending(e => e.LastSeen)
+                .FirstOrDefault();
+
+            if (preferred != null)
+            {
+                SelectedEndpoint = preferred;
+            }
+        }
+    }
 
     public override string ToString() => DisplayText;
 
@@ -140,7 +246,7 @@ public sealed class DiscoveredAgent : INotifyPropertyChanged
             return false;
         }
 
-        // Expected format: REMOTELAN_AGENT_V1|MachineName|TcpPort|Version
+        // Expected format: REMOTELAN_AGENT_V1|MachineName|TcpPort|Version[|MachineId[|InterfaceType[|IpAddress]]]
         string payload = rawMessage.Substring(DiscoveryConstants.DiscoveryResponsePrefix.Length);
         string[] parts = payload.Split('|');
 
@@ -156,15 +262,19 @@ public sealed class DiscoveredAgent : INotifyPropertyChanged
         }
 
         string version = parts.Length >= 3 ? parts[2].Trim() : "unknown";
+        string machineId = parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3].Trim() : machineName;
+        string interfaceType = parts.Length >= 5 && !string.IsNullOrWhiteSpace(parts[4]) ? parts[4].Trim() : "Ethernet";
+        string endpointIp = parts.Length >= 6 && !string.IsNullOrWhiteSpace(parts[5]) ? parts[5].Trim() : senderIp;
 
         agent = new DiscoveredAgent
         {
             MachineName = machineName,
-            IpAddress = senderIp,
+            MachineId = machineId,
             Port = port,
             Version = version
         };
 
+        agent.AddOrUpdateEndpoint(endpointIp, interfaceType);
         return true;
     }
 }

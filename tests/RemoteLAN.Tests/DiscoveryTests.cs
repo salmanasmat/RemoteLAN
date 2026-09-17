@@ -1,3 +1,4 @@
+using System.IO;
 using RemoteLAN.Discovery;
 using RemoteLAN.Protocol.Discovery;
 
@@ -152,5 +153,123 @@ public class DiscoveryTests
         Assert.Contains(nameof(DiscoveredAgent.StatusDotBrush), changedProperties);
         Assert.Contains(nameof(DiscoveredAgent.StatusText), changedProperties);
         Assert.Contains(nameof(DiscoveredAgent.CardOpacity), changedProperties);
+    }
+
+    [Fact]
+    public void AgentIdentity_Generates_Persists_And_Reloads_Guid()
+    {
+        string tempFile = Path.Combine(Path.GetTempPath(), $"agent_test_{Guid.NewGuid():N}.id");
+        try
+        {
+            AgentIdentity.OverrideFilePath = tempFile;
+            AgentIdentity.ResetCacheForTesting();
+
+            // 1. First run: generates a new GUID and writes to file
+            string firstId = AgentIdentity.GetOrCreateMachineId();
+            Assert.True(Guid.TryParse(firstId, out _));
+            Assert.True(File.Exists(tempFile));
+            Assert.Equal(firstId, File.ReadAllText(tempFile).Trim());
+
+            // 2. Reset cache to simulate subsequent app run: should load existing ID from file
+            AgentIdentity.ResetCacheForTesting();
+            string secondId = AgentIdentity.GetOrCreateMachineId();
+            Assert.Equal(firstId, secondId);
+        }
+        finally
+        {
+            AgentIdentity.OverrideFilePath = null;
+            AgentIdentity.ResetCacheForTesting();
+            if (File.Exists(tempFile))
+            {
+                try { File.Delete(tempFile); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void DiscoveredAgent_TryParse_WithMachineIdAndInterface_ReturnsTrue()
+    {
+        string machineId = Guid.NewGuid().ToString("D");
+        string raw = $"REMOTELAN_AGENT_V1|WORKSTATION-01|9191|1.1.6|{machineId}|WiFi|192.168.1.150";
+        bool result = DiscoveredAgent.TryParse(raw, "192.168.1.150", out var agent);
+
+        Assert.True(result);
+        Assert.NotNull(agent);
+        Assert.Equal("WORKSTATION-01", agent.MachineName);
+        Assert.Equal(machineId, agent.MachineId);
+        Assert.Equal("192.168.1.150", agent.IpAddress);
+        Assert.Equal("WiFi", agent.InterfaceType);
+        Assert.False(agent.IsEthernet);
+        Assert.Single(agent.Endpoints);
+        Assert.Equal("192.168.1.150", agent.Endpoints[0].IpAddress);
+        Assert.Equal("WiFi", agent.Endpoints[0].InterfaceType);
+    }
+
+    [Fact]
+    public void DiscoveredAgent_MultiNicEndpoints_Deduplicate_Under_Single_MachineId()
+    {
+        string machineId = Guid.NewGuid().ToString("D");
+        var agent = new DiscoveredAgent
+        {
+            MachineName = "MULTI-NIC-PC",
+            MachineId = machineId,
+            Port = 9191,
+            Version = "1.1.6"
+        };
+
+        // Add first endpoint (WiFi)
+        agent.AddOrUpdateEndpoint("192.168.2.50", "WiFi");
+        Assert.Single(agent.Endpoints);
+        Assert.Equal("192.168.2.50", agent.IpAddress);
+        Assert.Equal("WiFi", agent.InterfaceType);
+
+        // Add second endpoint (Ethernet) on same machine
+        agent.AddOrUpdateEndpoint("192.168.1.50", "Ethernet");
+        Assert.Equal(2, agent.Endpoints.Count);
+        Assert.True(agent.HasMultipleEndpoints);
+
+        // Automatically prefers Ethernet over WiFi
+        Assert.Equal("192.168.1.50", agent.IpAddress);
+        Assert.Equal("Ethernet", agent.InterfaceType);
+        Assert.True(agent.IsEthernet);
+    }
+
+    [Fact]
+    public void DiscoveredAgent_Prefers_Ethernet_Over_WiFi_ByDefault()
+    {
+        var agent = new DiscoveredAgent
+        {
+            MachineName = "DESKTOP-FAST",
+            MachineId = "TEST-ID-123"
+        };
+
+        agent.AddOrUpdateEndpoint("10.0.0.2", "WiFi");
+        agent.AddOrUpdateEndpoint("10.0.0.1", "Ethernet");
+
+        Assert.Equal("10.0.0.1", agent.IpAddress);
+        Assert.Equal("Ethernet", agent.InterfaceType);
+    }
+
+    [Fact]
+    public void DiscoveredAgent_Allows_Overriding_Preferred_Endpoint()
+    {
+        var agent = new DiscoveredAgent
+        {
+            MachineName = "DESKTOP-TEST",
+            MachineId = "TEST-ID-456"
+        };
+
+        agent.AddOrUpdateEndpoint("192.168.1.10", "Ethernet");
+        agent.AddOrUpdateEndpoint("192.168.2.10", "WiFi");
+
+        // Defaults to Ethernet
+        Assert.Equal("192.168.1.10", agent.IpAddress);
+
+        // User manually chooses WiFi endpoint (e.g. from UI dropdown)
+        var wifiEndpoint = agent.Endpoints.First(e => e.InterfaceType == "WiFi");
+        agent.SelectedEndpoint = wifiEndpoint;
+
+        Assert.Equal("192.168.2.10", agent.IpAddress);
+        Assert.Equal("WiFi", agent.InterfaceType);
     }
 }

@@ -603,6 +603,17 @@ public static class DesktopManager
         }
     }
 
+    internal static Func<NativeMethods.INPUT[], uint>? SendInputOverride { get; set; }
+
+    private static uint PerformSendInput(NativeMethods.INPUT[] inputs)
+    {
+        if (SendInputOverride != null)
+        {
+            return SendInputOverride(inputs);
+        }
+        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+    }
+
     private static void SendKeyDirect(ushort virtualKey, bool keyUp)
     {
         uint flags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0;
@@ -623,7 +634,7 @@ public static class DesktopManager
             }
         };
 
-        uint res = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+        uint res = PerformSendInput(new[] { input });
         if (res == 0)
         {
             int err = Marshal.GetLastWin32Error();
@@ -671,9 +682,9 @@ public static class DesktopManager
             }
         };
 
-        uint res1 = NativeMethods.SendInput(1, new[] { down }, Marshal.SizeOf<NativeMethods.INPUT>());
+        uint res1 = PerformSendInput(new[] { down });
         if (holdMs > 0) Thread.Sleep(holdMs);
-        uint res2 = NativeMethods.SendInput(1, new[] { up }, Marshal.SizeOf<NativeMethods.INPUT>());
+        uint res2 = PerformSendInput(new[] { up });
         if (res1 == 0 || res2 == 0)
         {
             int err = Marshal.GetLastWin32Error();
@@ -715,6 +726,13 @@ public static class DesktopManager
 
     public static void SendCtrlAltDel()
     {
+        if (SendInputOverride != null)
+        {
+            SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 5);
+            SendKeyStrokeDirect(0x26 /* VK_UP */, 5);
+            return;
+        }
+
         // 1. Try SendSAS from sas.dll if permitted
         try
         {

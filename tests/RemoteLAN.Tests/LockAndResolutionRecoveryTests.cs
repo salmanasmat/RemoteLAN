@@ -173,8 +173,17 @@ public class LockAndResolutionRecoveryTests
     [Fact]
     public void DesktopManager_SendCtrlAltDel_DoesNotThrow()
     {
-        // Calling SendCtrlAltDel should safely fall back and complete without unhandled exception
-        Security.DesktopManager.SendCtrlAltDel();
+        // Calling SendCtrlAltDel should safely fall back and complete without unhandled exception or physical OS key injection
+        var originalOverride = Security.DesktopManager.SendInputOverride;
+        try
+        {
+            Security.DesktopManager.SendInputOverride = inputs => (uint)inputs.Length;
+            Security.DesktopManager.SendCtrlAltDel();
+        }
+        finally
+        {
+            Security.DesktopManager.SendInputOverride = originalOverride;
+        }
     }
 
     [Fact]

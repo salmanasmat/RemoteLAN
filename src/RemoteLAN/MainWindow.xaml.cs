@@ -32,8 +32,12 @@ public partial class MainWindow : Window
     private string? _modalTargetIp;
     private int _modalTargetPort;
     private string? _modalTargetDisplayName;
+    private DiscoveredAgent? _modalTargetAgent;
     private string? _osModalTargetIp;
     private bool _isScanning;
+    private IncomingConnectionEventArgs? _currentIncomingRequest;
+    private ControllerClient? _pendingApprovalClient;
+    private CancellationTokenSource? _pendingApprovalCts;
 
     private sealed class NetworkAddressItem
     {
@@ -71,6 +75,8 @@ public partial class MainWindow : Window
         _server.StatusChanged += Server_StatusChanged;
         _server.ClientConnected += Server_ClientConnected;
         _server.ClientDisconnected += Server_ClientDisconnected;
+        _server.IncomingConnectionRequested += Server_IncomingConnectionRequested;
+        _server.IncomingConnectionDismissed += Server_IncomingConnectionDismissed;
         _server.PinManager.PinChanged += PinManager_PinChanged;
 
         int rotationMinutes = _settingsManager.PinRotationIntervalMinutes;
@@ -94,15 +100,17 @@ public partial class MainWindow : Window
         var savedHistory = _settingsManager.GetDeviceHistory();
         foreach (var dev in savedHistory)
         {
-            _discoveredAgents.Add(new DiscoveredAgent
+            var historyAgent = new DiscoveredAgent
             {
+                MachineId = string.IsNullOrEmpty(dev.MachineId) ? dev.MachineName : dev.MachineId,
                 MachineName = dev.MachineName,
-                IpAddress = dev.IpAddress,
                 Port = dev.Port > 0 ? dev.Port : ProtocolConstants.DefaultPort,
                 Version = dev.Version,
                 IsOnline = false,
                 LastSeen = dev.LastSeenUtc
-            });
+            };
+            historyAgent.AddOrUpdateEndpoint(dev.IpAddress, string.IsNullOrEmpty(dev.InterfaceType) ? "Ethernet" : dev.InterfaceType, dev.LastSeenUtc);
+            _discoveredAgents.Add(historyAgent);
         }
 
         UpdateEmptyState();
@@ -227,6 +235,45 @@ public partial class MainWindow : Window
         });
     }
 
+    private void Server_IncomingConnectionRequested(IncomingConnectionEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _currentIncomingRequest = e;
+            IncomingRequesterNameText.Text = e.ClientMachineName;
+            IncomingRequesterEndpointText.Text = e.ClientIp;
+            IncomingRequestOverlay.Visibility = Visibility.Visible;
+            ShowAndActivate();
+            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
+            _trayIcon?.ShowBalloonTip(5000, "Incoming Remote Connection", $"{e.ClientMachineName} ({e.ClientIp}) is requesting access.", WinForms.ToolTipIcon.Info);
+        });
+    }
+
+    private void Server_IncomingConnectionDismissed()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _currentIncomingRequest = null;
+            IncomingRequestOverlay.Visibility = Visibility.Collapsed;
+        });
+    }
+
+    private void AcceptIncomingBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var req = _currentIncomingRequest;
+        _currentIncomingRequest = null;
+        IncomingRequestOverlay.Visibility = Visibility.Collapsed;
+        req?.Accept();
+    }
+
+    private void RejectIncomingBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var req = _currentIncomingRequest;
+        _currentIncomingRequest = null;
+        IncomingRequestOverlay.Visibility = Visibility.Collapsed;
+        req?.Reject();
+    }
+
     private void CopyIp_Click(object sender, RoutedEventArgs e)
     {
         if (LocalIpsComboBox.SelectedItem is NetworkAddressItem item)
@@ -318,9 +365,11 @@ public partial class MainWindow : Window
             // Discover remote agents, explicitly filtering out this machine's own network interfaces
             var rawAgents = await _discoveryClient.DiscoverAgentsAsync(filterSelf: true);
 
-            // Double filter against local machine name, loopback, and local IPs
+            // Double filter against local machine name, local machine ID, loopback, and local IPs
+            string localMachineId = AgentIdentity.GetOrCreateMachineId();
             var filteredAgents = rawAgents.Where(a =>
                 !string.Equals(a.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(a.MachineId, localMachineId, StringComparison.OrdinalIgnoreCase) &&
                 !_localIpAddresses.Contains(a.IpAddress) &&
                 a.IpAddress != "127.0.0.1"
             ).ToList();
@@ -331,8 +380,7 @@ public partial class MainWindow : Window
                 foreach (var agent in _discoveredAgents)
                 {
                     bool stillOnline = filteredAgents.Any(a =>
-                        a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) &&
-                        a.Port == agent.Port);
+                        string.Equals(a.MachineId, agent.MachineId, StringComparison.OrdinalIgnoreCase));
                     if (!stillOnline)
                     {
                         if ((DateTime.UtcNow - agent.LastSeen).TotalSeconds > 15)
@@ -346,14 +394,14 @@ public partial class MainWindow : Window
                 foreach (var agent in filteredAgents)
                 {
                     var existing = _discoveredAgents.FirstOrDefault(a =>
-                        a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) &&
-                        a.Port == agent.Port);
+                        string.Equals(a.MachineId, agent.MachineId, StringComparison.OrdinalIgnoreCase));
 
                     if (existing == null)
                     {
                         agent.IsOnline = true;
                         agent.LastSeen = DateTime.UtcNow;
                         _discoveredAgents.Add(agent);
+                        _settingsManager.UpdateDeviceInHistory(agent);
                     }
                     else
                     {
@@ -361,10 +409,16 @@ public partial class MainWindow : Window
                         existing.LastSeen = DateTime.UtcNow;
                         existing.MachineName = agent.MachineName;
                         existing.Version = agent.Version;
-                    }
+                        existing.Port = agent.Port;
 
-                    // Save or update in persistent device history
-                    _settingsManager.UpdateDeviceInHistory(agent);
+                        foreach (var ep in agent.Endpoints)
+                        {
+                            existing.AddOrUpdateEndpoint(ep.IpAddress, ep.InterfaceType, ep.LastSeen);
+                        }
+
+                        // Save or update in persistent device history
+                        _settingsManager.UpdateDeviceInHistory(existing);
+                    }
                 }
 
                 UpdateEmptyState();
@@ -506,7 +560,7 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
         {
             _discoveredAgents.Remove(agent);
-            _settingsManager.RemoveDeviceFromHistory(agent.MachineName, agent.IpAddress, agent.Port);
+            _settingsManager.RemoveDeviceFromHistory(agent.MachineName, agent.IpAddress, agent.Port, agent.MachineId);
             UpdateEmptyState();
             UpdateDiscoveredCount();
             SetStatus($"Removed {agent.MachineName} from history", Color.FromRgb(100, 116, 139));
@@ -524,25 +578,135 @@ public partial class MainWindow : Window
             if (!success)
             {
                 // Saved password failed (e.g. host changed its PIN) -> open PIN modal prompting for new PIN
-                OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName, fallbackFromFailedSavedPassword: true);
+                OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName, fallbackFromFailedSavedPassword: true, agent: agent);
             }
         }
         else
         {
-            OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName);
+            OpenPinModal(agent.IpAddress, agent.Port, agent.MachineName, agent: agent);
         }
     }
 
-    private void OpenPinModal(string ip, int port, string displayName, bool fallbackFromFailedSavedPassword = false)
+    private void CancelPendingApprovalConnection()
     {
+        try
+        {
+            _pendingApprovalCts?.Cancel();
+            _pendingApprovalCts?.Dispose();
+            _pendingApprovalCts = null;
+
+            if (_pendingApprovalClient != null)
+            {
+                _pendingApprovalClient.Disconnect();
+                _pendingApprovalClient.Dispose();
+                _pendingApprovalClient = null;
+            }
+        }
+        catch { }
+    }
+
+    private void StartPendingApprovalConnection(string ip, int port, string displayName)
+    {
+        CancelPendingApprovalConnection();
+
+        _pendingApprovalCts = new CancellationTokenSource();
+        var ct = _pendingApprovalCts.Token;
+        var client = new ControllerClient();
+        _pendingApprovalClient = client;
+
+        client.StateChanged += (state, message) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (state == ControllerState.Connected)
+                {
+                    // Remote user accepted incoming connection!
+                    if (PinModalOverlay.Visibility == Visibility.Visible && _modalTargetIp == ip)
+                    {
+                        string osPass = ModalOsPasswordBox.Password;
+                        if (!string.IsNullOrEmpty(osPass))
+                        {
+                            if (SaveModalOsPasswordCheckBox.IsChecked == true)
+                            {
+                                _settingsManager.SaveOsPassword(ip, osPass);
+                            }
+                            else
+                            {
+                                _settingsManager.RemoveOsPassword(ip);
+                            }
+                        }
+
+                        PinModalOverlay.Visibility = Visibility.Collapsed;
+                        _modalTargetIp = null;
+                        _modalTargetDisplayName = null;
+                        _pendingApprovalClient = null;
+
+                        SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129));
+                        var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip);
+                        sessionWin.Show();
+                        SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+                    }
+                }
+                else if (state == ControllerState.Error)
+                {
+                    if (PinModalOverlay.Visibility == Visibility.Visible && _modalTargetIp == ip)
+                    {
+                        if (message.Contains("declined", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModalStatusText.Text = "Connection was declined by the remote user.";
+                        }
+                        else if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModalStatusText.Text = "Connection request timed out. Enter PIN to connect.";
+                        }
+                        ModalStatusText.Visibility = Visibility.Visible;
+                        ModalConnectBtn.IsEnabled = true;
+                    }
+                }
+            });
+        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await client.ConnectAsync(ip, port, pin: string.Empty, ct).ConfigureAwait(false);
+            }
+            catch { }
+        }, ct);
+    }
+
+    private void OpenPinModal(string ip, int port, string displayName, bool fallbackFromFailedSavedPassword = false, DiscoveredAgent? agent = null)
+    {
+        _modalTargetAgent = agent;
         _modalTargetIp = ip;
         _modalTargetPort = port;
         _modalTargetDisplayName = displayName;
 
         ModalDeviceNameText.Text = displayName;
-        ModalDeviceIpText.Text = port == ProtocolConstants.DefaultPort ? ip : $"{ip}:{port}";
         ModalPinTextBox.Text = string.Empty;
         ModalConnectBtn.IsEnabled = true;
+
+        if (agent != null && agent.Endpoints.Count > 1)
+        {
+            ModalSingleIpPanel.Visibility = Visibility.Collapsed;
+            ModalEndpointsComboBox.Visibility = Visibility.Visible;
+            ModalEndpointsComboBox.ItemsSource = agent.Endpoints;
+            ModalEndpointsComboBox.SelectedItem = agent.SelectedEndpoint ?? agent.Endpoints.FirstOrDefault();
+        }
+        else
+        {
+            ModalEndpointsComboBox.Visibility = Visibility.Collapsed;
+            ModalSingleIpPanel.Visibility = Visibility.Visible;
+            ModalDeviceIpText.Text = port == ProtocolConstants.DefaultPort ? ip : $"{ip}:{port}";
+            ModalInterfaceBadgeText.Text = agent?.InterfaceType ?? "Ethernet";
+            try
+            {
+                ModalInterfaceBadge.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromInvariantString(agent?.SelectedEndpoint?.BadgeBackgroundBrush ?? "#EFF6FF")!;
+                ModalInterfaceBadgeText.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromInvariantString(agent?.SelectedEndpoint?.BadgeForegroundBrush ?? "#2563EB")!;
+            }
+            catch { }
+        }
 
         bool hasSaved = _settingsManager.HasSavedPassword(displayName, ip);
         ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
@@ -575,13 +739,47 @@ public partial class MainWindow : Window
         SaveModalPasswordCheckBox.IsChecked = true;
         PinModalOverlay.Visibility = Visibility.Visible;
         ModalPinTextBox.Focus();
+
+        // Connect in background to request remote user approval
+        StartPendingApprovalConnection(ip, port, displayName);
+    }
+
+    private void ModalEndpointsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ModalEndpointsComboBox.SelectedItem is AgentEndpointInfo endpoint && _modalTargetAgent != null)
+        {
+            _modalTargetAgent.SelectedEndpoint = endpoint;
+            _modalTargetIp = endpoint.IpAddress;
+
+            bool hasSaved = _settingsManager.HasSavedPassword(_modalTargetDisplayName, _modalTargetIp);
+            ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
+
+            bool hasSavedOs = _settingsManager.HasSavedOsPassword(_modalTargetIp);
+            ModalForgetOsPasswordBtn.Visibility = hasSavedOs ? Visibility.Visible : Visibility.Collapsed;
+
+            if (_settingsManager.TryGetOsPassword(_modalTargetIp, out string? existingOsPass))
+            {
+                ModalOsPasswordBox.Password = existingOsPass;
+            }
+            else
+            {
+                ModalOsPasswordBox.Password = string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(_modalTargetDisplayName))
+            {
+                StartPendingApprovalConnection(_modalTargetIp, _modalTargetPort, _modalTargetDisplayName);
+            }
+        }
     }
 
     private void ClosePinModal_Click(object sender, RoutedEventArgs e)
     {
+        CancelPendingApprovalConnection();
         PinModalOverlay.Visibility = Visibility.Collapsed;
         _modalTargetIp = null;
         _modalTargetDisplayName = null;
+        _modalTargetAgent = null;
     }
 
     private void ModalForgetPasswordBtn_Click(object sender, RoutedEventArgs e)
@@ -620,7 +818,12 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            if (PinModalOverlay.Visibility == Visibility.Visible)
+            if (IncomingRequestOverlay.Visibility == Visibility.Visible)
+            {
+                RejectIncomingBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (PinModalOverlay.Visibility == Visibility.Visible)
             {
                 ClosePinModal_Click(this, new RoutedEventArgs());
                 e.Handled = true;
@@ -674,6 +877,9 @@ public partial class MainWindow : Window
             ModalPinTextBox.Focus();
             return;
         }
+
+        // Cancel pending background approval connection
+        CancelPendingApprovalConnection();
 
         ModalConnectBtn.IsEnabled = false;
         ModalStatusText.Visibility = Visibility.Collapsed;
@@ -1120,6 +1326,7 @@ public partial class MainWindow : Window
 
         _discoveryTimer.Stop();
         _server.Dispose();
+        CancelPendingApprovalConnection();
         base.OnClosed(e);
     }
 }

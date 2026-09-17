@@ -1,5 +1,27 @@
 # Release Notes
 
+## [1.1.6] - 2026-09-17
+
+RemoteLAN **v1.1.6** eliminates phantom key typing and mouse movements ("the 'A' bug"), isolates input pipeline test suites from the host operating system, and hardens remote desktop viewport focus.
+
+### 🛡️ Fixed & Hardened
+- **Eliminated Phantom "A" Key & Mouse Movement**: Discovered that four automated input pipeline tests directly invoked Win32 `NativeMethods.SendInput` on the host workstation during test execution (`dotnet test`), injecting raw `'a'` keystrokes, Ctrl/Shift/Alt modifiers, and cursor snaps into active windows. Added a test isolation delegate hook in `InputInjector` and `DesktopManager` so all tests run against safe in-memory sinks without any OS desktop interference.
+- **Session Viewport Keyboard Focus Hardening**: Set `Focusable="False"` across all session toolbar buttons (`Actions`, `Fullscreen`, `Disconnect`), ensuring button clicks and menu interactions never steal keyboard focus from the remote viewport. Keystroke preview handlers are now routed at the Window level with a dedicated guard for the local OS password modal.
+- **Automatic Focus Restoration**: Added focus detection in `ScreenViewport_MouseMove` to instantly restore keyboard focus to the remote desktop whenever the user moves the mouse back into the viewport.
+
+## [1.1.5] - 2026-09-17
+
+RemoteLAN **v1.1.5** delivers an immersive borderless fullscreen experience with an auto-hiding peek toolbar, a unified Actions control center, and refined post-installation startup handling.
+
+### 🚀 New Features
+- **True Fullscreen with Auto-Hiding Peek Toolbar**: Fullscreen mode automatically hides both the top control bar and bottom status bar for a distraction-free display. Hovering the cursor near the top edge smoothly peeks the floating toolbar without interrupting or resizing the remote video stream.
+- **Consolidated Actions Control Center**: Streamlined the session toolbar by replacing cluttered buttons with a unified `⚡ Actions ▾` menu grouping Send Remote Input toggle, Windows OS Login, Ctrl+Alt+Del, and Remote Power actions (Lock, Sleep, Restart, Shutdown).
+
+### ⚡ Improvements
+- **Installer Launch by Default**: The "Launch RemoteLAN" option is now checked by default on the installer completion screen.
+- **Single-Instance Clean Launch**: Resolved a post-installation startup race condition using Inno Setup mutex verification, ensuring the main window stays open and focused when launched after installation.
+
+
 ## [1.1.4] - 2026-09-17
 
 ### Fixed

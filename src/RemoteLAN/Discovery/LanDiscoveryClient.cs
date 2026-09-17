@@ -24,10 +24,13 @@ public sealed class LanDiscoveryClient
         var discoveredMap = new Dictionary<string, DiscoveredAgent>(StringComparer.OrdinalIgnoreCase);
 
         var localIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "127.0.0.1", "localhost", "::1" };
+        string localMachineId = string.Empty;
+
         if (filterSelf)
         {
             try
             {
+                localMachineId = AgentIdentity.GetOrCreateMachineId();
                 foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
                 {
                     if (ni.OperationalStatus != OperationalStatus.Up) continue;
@@ -96,15 +99,32 @@ public sealed class LanDiscoveryClient
                             continue;
                         }
 
-                        // 2. Ignore local machine name
-                        if (string.Equals(agent.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+                        // 2. Ignore local machine name or local machine ID
+                        if (string.Equals(agent.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) ||
+                            (!string.IsNullOrEmpty(localMachineId) && string.Equals(agent.MachineId, localMachineId, StringComparison.OrdinalIgnoreCase)))
                         {
                             continue;
                         }
                     }
 
-                    string key = $"{agent.IpAddress}:{agent.Port}";
-                    discoveredMap[key] = agent;
+                    // Key by stable Machine ID so multi-homed agents (e.g. Ethernet + Wi-Fi) merge into one entry
+                    string key = agent.MachineId;
+                    if (discoveredMap.TryGetValue(key, out var existing))
+                    {
+                        foreach (var ep in agent.Endpoints)
+                        {
+                            existing.AddOrUpdateEndpoint(ep.IpAddress, ep.InterfaceType, ep.LastSeen);
+                        }
+                        existing.LastSeen = DateTime.UtcNow;
+                        existing.IsOnline = true;
+                        existing.Port = agent.Port;
+                        existing.Version = agent.Version;
+                        existing.MachineName = agent.MachineName;
+                    }
+                    else
+                    {
+                        discoveredMap[key] = agent;
+                    }
                 }
             }
         }
@@ -117,10 +137,7 @@ public sealed class LanDiscoveryClient
             // Ignore socket read errors during scan
         }
 
-        // Deduplicate agents by MachineName so multi-homed devices (e.g. WiFi and Ethernet) are not listed redundantly
         return discoveredMap.Values
-            .GroupBy(a => a.MachineName, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
             .OrderBy(a => a.MachineName)
             .ToList();
     }

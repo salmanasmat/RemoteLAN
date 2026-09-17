@@ -253,19 +253,27 @@
                         <RowDefinition Height="46"/>  <!-- White/Light Footer Bar -->
                     </Grid.RowDefinitions>
 
-                    <!-- Top Colored Header Area (Pastel Background + Windows Logo + Machine Name) -->
+                    <!-- Top Colored Header Area (Pastel Background + Windows Logo + Machine Name + Connection Badge) -->
                     <Border Grid.Row="0" CornerRadius="13,13,0,0" Background="{Binding HeaderBackgroundBrush}"
                             SnapsToDevicePixels="True">
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <!-- Crisp Windows Perspective Logo -->
-                            <Path Data="M 0,3.5 L 14,1.8 L 14,14 L 0,14 Z M 16,1.5 L 34,0 L 34,14 L 16,14 Z M 0,16 L 14,16 L 14,28.2 L 0,26.5 Z M 16,16 L 34,16 L 34,30 L 16,28.5 Z"
-                                  Fill="#FFFFFF" Stretch="Uniform" Width="36" Height="36" HorizontalAlignment="Center" Margin="0,0,0,6"
-                                  SnapsToDevicePixels="True"/>
-                            <!-- Device / User Name -->
-                            <TextBlock Text="{Binding MachineName}" FontSize="12" FontWeight="Medium" Foreground="#FFFFFF"
-                                       HorizontalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="174"
-                                       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
-                        </StackPanel>
+                        <Grid>
+                            <!-- Connection Type Badge (e.g. Ethernet / WiFi) -->
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
+                                    Background="#33000000" CornerRadius="4" Padding="5,2">
+                                <TextBlock Text="{Binding InterfaceType}" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF"/>
+                            </Border>
+
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <!-- Crisp Windows Perspective Logo -->
+                                <Path Data="M 0,3.5 L 14,1.8 L 14,14 L 0,14 Z M 16,1.5 L 34,0 L 34,14 L 16,14 Z M 0,16 L 14,16 L 14,28.2 L 0,26.5 Z M 16,16 L 34,16 L 34,30 L 16,28.5 Z"
+                                      Fill="#FFFFFF" Stretch="Uniform" Width="36" Height="36" HorizontalAlignment="Center" Margin="0,0,0,6"
+                                      SnapsToDevicePixels="True"/>
+                                <!-- Device / User Name -->
+                                <TextBlock Text="{Binding MachineName}" FontSize="12" FontWeight="Medium" Foreground="#FFFFFF"
+                                           HorizontalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="174"
+                                           TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!-- Bottom Bar (Status Dot + IP Address + 3-Dots Kebab Menu) -->
@@ -349,7 +357,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v1.1.4" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v1.1.6" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -650,13 +658,26 @@
                             
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock x:Name="ModalDeviceNameText" Text="DESKTOP-TARGET" FontSize="14" FontWeight="Bold" Foreground="#0F172A" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="ModalDeviceIpText" Text="192.168.1.50" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
+                                <StackPanel x:Name="ModalSingleIpPanel" Orientation="Horizontal" Margin="0,1,0,0">
+                                    <TextBlock x:Name="ModalDeviceIpText" Text="192.168.1.50" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
+                                    <Border x:Name="ModalInterfaceBadge" Background="#EFF6FF" CornerRadius="3" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ModalInterfaceBadgeText" Text="Ethernet" FontSize="10" FontWeight="SemiBold" Foreground="#2563EB"/>
+                                    </Border>
+                                </StackPanel>
+                                <ComboBox x:Name="ModalEndpointsComboBox" Visibility="Collapsed" Height="26" Margin="0,3,0,0"
+                                          FontSize="11" DisplayMemberPath="DisplayText" SelectionChanged="ModalEndpointsComboBox_SelectionChanged"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
                     <!-- Row 2: PIN Input Field -->
                     <StackPanel Grid.Row="2">
+                        <!-- Waiting for Approval / PIN Prompt Banner -->
+                        <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,10">
+                            <TextBlock Text="⏳ Waiting for remote user to accept... Or enter password/PIN below to connect immediately:"
+                                       FontSize="11" Foreground="#1E40AF" TextWrapping="Wrap"/>
+                        </Border>
+
                         <TextBlock Text="ACCESS CODE OR PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
                         <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="38"
                                  FontSize="17" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
@@ -698,6 +719,85 @@
                                 Cursor="Hand" HorizontalAlignment="Center" Margin="0,4,0,0" Visibility="Collapsed"
                                 Click="ModalForgetOsPasswordBtn_Click"/>
                     </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- INCOMING CONNECTION REQUEST OVERLAY (Accept / Reject Prompt)       -->
+        <!-- ================================================================= -->
+        <Grid Grid.ColumnSpan="2" x:Name="IncomingRequestOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1200"
+              SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
+                    Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Header -->
+                        <RowDefinition Height="Auto"/> <!-- Requester Badge -->
+                        <RowDefinition Height="Auto"/> <!-- Info Note -->
+                        <RowDefinition Height="Auto"/> <!-- Buttons: Accept / Reject -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,14">
+                        <Border Width="34" Height="34" CornerRadius="17" Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
+                            <TextBlock Text="🔔" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Incoming Connection Request" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
+                            <TextBlock Text="A remote device wants to control your screen" FontSize="11" Foreground="#64748B"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Requester Badge -->
+                    <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <TextBlock Text="💻" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="IncomingRequesterNameText" Text="DESKTOP-REMOTE" FontSize="14" FontWeight="Bold" Foreground="#0F172A" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="IncomingRequesterEndpointText" Text="192.168.1.100" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Info Note -->
+                    <TextBlock Grid.Row="2" Text="Accepting allows this user to view your display and send mouse and keyboard input." 
+                               FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,18"/>
+
+                    <!-- Action Buttons -->
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="RejectIncomingBtn" Content="✕  Dismiss" Height="40" 
+                                Background="#F1F5F9" Foreground="#475569" BorderBrush="#CBD5E1" BorderThickness="1"
+                                FontSize="12.5" FontWeight="SemiBold" Cursor="Hand" Click="RejectIncomingBtn_Click">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="6"/>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                        <Button Grid.Column="2" x:Name="AcceptIncomingBtn" Content="✓  Accept" Height="40" 
+                                Background="#10B981" Foreground="#FFFFFF" BorderThickness="0"
+                                FontSize="12.5" FontWeight="Bold" Cursor="Hand" Click="AcceptIncomingBtn_Click">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="6"/>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

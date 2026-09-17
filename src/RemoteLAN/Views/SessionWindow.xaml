@@ -8,16 +8,24 @@
         WindowStartupLocation="CenterScreen"
         Background="#0F172A" Foreground="#F8FAFC"
         FontFamily="Segoe UI"
-        Icon="/icon.ico">
-    <Grid>
+        Icon="/icon.ico"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewKeyUp="Window_PreviewKeyUp">
+    <Grid Background="#020617">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition x:Name="TopToolbarRow" Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition x:Name="StatusBarRow" Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Top Peek Trigger (Active in Fullscreen only) -->
+        <Border x:Name="TopPeekTrigger" Grid.RowSpan="3" Height="8" VerticalAlignment="Top"
+                Background="Transparent" Panel.ZIndex="499"
+                MouseEnter="TopPeekTrigger_MouseEnter" Visibility="Collapsed"/>
+
         <!-- Top Session Toolbar -->
-        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="16,8">
+        <Border x:Name="TopToolbar" Grid.Row="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="16,8"
+                Panel.ZIndex="500" MouseLeave="TopToolbar_MouseLeave">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -38,29 +46,24 @@
 
                 <!-- Session Controls -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <CheckBox x:Name="EnableInputCheckBox" Content="Send Remote Input" IsChecked="True" Foreground="#334155" 
-                              VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand" FontWeight="Medium"/>
-                    <Button x:Name="SendCadBtn" Content="Ctrl+Alt+Del" Click="SendCadBtn_Click" Padding="12,4"
-                            ToolTip="Send Ctrl+Alt+Del to unlock or wake the remote sign-in screen"
-                            Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
-                    <Button x:Name="UnlockOsBtn" Content="🔑 OS Login" Click="UnlockOsBtn_Click" Padding="12,4"
-                            ToolTip="Auto-enter Windows OS password to unlock remote sign-in screen"
-                            Background="#EFF6FF" Foreground="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" Cursor="Hand" FontWeight="SemiBold" Margin="0,0,10,0">
+                    <!-- Consolidated Actions Menu Button -->
+                    <Button x:Name="ActionsBtn" Content="⚡ Actions ▾" Click="ActionsBtn_Click" Padding="14,4"
+                            ToolTip="Session Actions (Input, OS Login, Ctrl+Alt+Del, Power)" Focusable="False"
+                            Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="SemiBold" Margin="0,0,10,0">
                         <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="🔑 Enter Saved OS Password" Click="MenuEnterSavedOsPassword_Click"/>
-                                <MenuItem Header="⚙️ Set/Change OS Password..." Click="MenuConfigureOsPassword_Click"/>
+                            <ContextMenu x:Name="ActionsContextMenu">
+                                <MenuItem x:Name="MenuSendRemoteInputToggle" Header="Send Remote Input" IsCheckable="True" IsChecked="True"/>
                                 <Separator/>
-                                <MenuItem x:Name="MenuAutoUnlockToggle" Header="Auto-Enter Password When Locked" IsCheckable="True" IsChecked="True" Click="MenuAutoUnlockToggle_Click"/>
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
-                    <Button x:Name="PowerActionsBtn" Content="⚡ Power" Click="PowerActionsBtn_Click" Padding="12,4"
-                            ToolTip="Remote system power actions (Lock, Sleep, Restart, Shutdown)"
-                            Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0">
-                        <Button.ContextMenu>
-                            <ContextMenu>
+                                <MenuItem Header="🔑 OS Login">
+                                    <MenuItem Header="🔑 Enter Saved OS Password" Click="MenuEnterSavedOsPassword_Click"/>
+                                    <MenuItem Header="⚙️ Set/Change OS Password..." Click="MenuConfigureOsPassword_Click"/>
+                                    <Separator/>
+                                    <MenuItem x:Name="MenuAutoUnlockToggle" Header="Auto-Enter Password When Locked" IsCheckable="True" IsChecked="True" Click="MenuAutoUnlockToggle_Click"/>
+                                </MenuItem>
+                                <MenuItem Header="⌨️ Send Ctrl+Alt+Del" Click="SendCadBtn_Click" ToolTip="Send Ctrl+Alt+Del to unlock or wake the remote sign-in screen"/>
+                                <Separator/>
                                 <MenuItem Header="🔒 Lock Workstation" Click="PowerLock_Click"/>
+                                <MenuItem x:Name="MenuLockOnDisconnectToggle" Header="🔒 Lock Remote PC on Session End" IsCheckable="True" IsChecked="False"/>
                                 <MenuItem Header="🌙 Sleep / Suspend" Click="PowerSleep_Click"/>
                                 <Separator/>
                                 <MenuItem Header="🔄 Restart PC..." Click="PowerRestart_Click"/>
@@ -68,9 +71,9 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button x:Name="ToggleFullscreenBtn" Content="Fullscreen" Click="ToggleFullscreenBtn_Click" Padding="12,4"
+                    <Button x:Name="ToggleFullscreenBtn" Content="Fullscreen" Click="ToggleFullscreenBtn_Click" Padding="12,4" Focusable="False"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
-                    <Button x:Name="DisconnectBtn" Content="Disconnect" Click="DisconnectBtn_Click" Padding="14,4"
+                    <Button x:Name="DisconnectBtn" Content="Disconnect" Click="DisconnectBtn_Click" Padding="14,4" Focusable="False"
                             Background="#EF4444" Foreground="#FFFFFF" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
                 </StackPanel>
 
@@ -83,9 +86,7 @@
         </Border>
 
         <!-- Remote Desktop Viewport -->
-        <Border Grid.Row="1" x:Name="ViewportContainer" Focusable="True" Background="#020617"
-                PreviewKeyDown="ViewportContainer_PreviewKeyDown"
-                PreviewKeyUp="ViewportContainer_PreviewKeyUp">
+        <Border Grid.Row="1" x:Name="ViewportContainer" Focusable="True" Background="#020617">
             <Image x:Name="ScreenViewport" Stretch="Uniform"
                    MouseMove="ScreenViewport_MouseMove"
                    MouseDown="ScreenViewport_MouseDown"
@@ -95,14 +96,14 @@
         </Border>
 
         <!-- Session Status Bar -->
-        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="16,6">
+        <Border x:Name="StatusBarBorder" Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="16,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SessionStatusText" Text="Connected • Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.4" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.6" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 

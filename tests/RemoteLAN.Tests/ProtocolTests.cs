@@ -9,11 +9,27 @@ public class ProtocolTests
     [Fact]
     public void AuthRequest_RoundTrip_Serialization()
     {
-        var original = new AuthRequest { Pin = "849201" };
+        var original = new AuthRequest { Pin = "849201", ClientMachineName = "DESKTOP-TEST" };
         byte[] bytes = original.Serialize();
         var deserialized = AuthRequest.Deserialize(bytes);
 
         Assert.Equal(original.Pin, deserialized.Pin);
+        Assert.Equal(original.ClientMachineName, deserialized.ClientMachineName);
+    }
+
+    [Fact]
+    public void AuthRequest_BackwardCompatibility_WhenNoMachineName()
+    {
+        // Simulate older client sending only PIN string
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true);
+        writer.Write("719302");
+        writer.Flush();
+        byte[] legacyBytes = ms.ToArray();
+
+        var deserialized = AuthRequest.Deserialize(legacyBytes);
+        Assert.Equal("719302", deserialized.Pin);
+        Assert.Equal(string.Empty, deserialized.ClientMachineName);
     }
 
     [Fact]
