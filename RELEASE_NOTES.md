@@ -1,5 +1,14 @@
 # Release Notes
 
+## [1.1.4] - 2026-09-17
+
+### Fixed
+- **OS Auto-Password Premature Submission**: Fixed an issue where the lock screen wake sequence sent premature Enter keys, causing the password box to submit a single character before the full password was typed.
+- **Physical Keystroke Scan Code Fidelity**: Integrated VkKeyScan and hardware scan code translation (MapVirtualKey) with automatic Shift/Ctrl/Alt modifier handling, replacing KEYEVENTF_UNICODE which was ignored by the Windows DirectUI/XAML LogonUI credential provider.
+- **Safe Lock Screen Wake Routine**: Replaced Space/Return wake keys with non-printable navigation keys (VK_ESCAPE and VK_UP) to smoothly slide the lock screen curtain open without typing characters into focused inputs.
+- **Input Pipeline Stability**: Verified input tracking and mouse throttling to prevent dropped keystrokes, key repeats, or worker thread stalls.
+
+
 ## [1.1.3] - 2026-09-17
 
 ### Fixed
