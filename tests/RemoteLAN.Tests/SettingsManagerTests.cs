@@ -194,4 +194,69 @@ public class SettingsManagerTests : IDisposable
         Assert.Equal(60, manager2.LockoutDurationMinutes);
         Assert.False(manager2.BlockUnauthorizedAttempts);
     }
+
+    [Fact]
+    public void SettingsManager_SavedOsPasswords_Persist_And_Query()
+    {
+        var manager1 = new SettingsManager(_tempSettingsPath);
+        Assert.False(manager1.HasSavedOsPassword("192.168.1.55"));
+
+        manager1.SaveOsPassword("DESKTOP-TARGET", "192.168.1.55", "SecretOsPass123!");
+        Assert.True(manager1.HasSavedOsPassword("192.168.1.55"));
+        Assert.True(manager1.TryGetOsPassword("192.168.1.55", out string retrieved1));
+        Assert.Equal("SecretOsPass123!", retrieved1);
+
+        // Fresh instance reload
+        var manager2 = new SettingsManager(_tempSettingsPath);
+        Assert.True(manager2.HasSavedOsPassword("DESKTOP-TARGET"));
+        Assert.True(manager2.TryGetOsPassword("DESKTOP-TARGET", out string retrieved2));
+        Assert.Equal("SecretOsPass123!", retrieved2);
+
+        // Remove
+        manager2.RemoveOsPassword("192.168.1.55");
+        Assert.False(manager2.HasSavedOsPassword("192.168.1.55"));
+    }
+
+    [Fact]
+    public void SettingsManager_DeviceHistory_Persist_Update_And_Remove()
+    {
+        var manager1 = new SettingsManager(_tempSettingsPath);
+        Assert.Empty(manager1.GetDeviceHistory());
+
+        manager1.UpdateDeviceInHistory("DESKTOP-A", "192.168.1.10", 9191, "1.0.0");
+        manager1.UpdateDeviceInHistory("LAPTOP-B", "192.168.1.20", 9191, "1.0.0");
+
+        var history1 = manager1.GetDeviceHistory();
+        Assert.Equal(2, history1.Count);
+
+        // Update existing device in history with new version/timestamp
+        manager1.UpdateDeviceInHistory("DESKTOP-A", "192.168.1.10", 9191, "1.0.1");
+        var historyUpdated = manager1.GetDeviceHistory();
+        Assert.Equal(2, historyUpdated.Count);
+        Assert.Equal("1.0.1", historyUpdated.First(d => d.MachineName == "DESKTOP-A").Version);
+
+        // Fresh instance reload
+        var manager2 = new SettingsManager(_tempSettingsPath);
+        var history2 = manager2.GetDeviceHistory();
+        Assert.Equal(2, history2.Count);
+
+        // Remove one device
+        manager2.RemoveDeviceFromHistory("DESKTOP-A", "192.168.1.10");
+        var historyAfterRemove = manager2.GetDeviceHistory();
+        Assert.Single(historyAfterRemove);
+        Assert.Equal("LAPTOP-B", historyAfterRemove[0].MachineName);
+    }
+
+    [Fact]
+    public void SettingsManager_AutoEnterOsPasswordOnConnect_Persists()
+    {
+        var manager1 = new SettingsManager(_tempSettingsPath);
+        Assert.True(manager1.AutoEnterOsPasswordOnConnect);
+
+        manager1.AutoEnterOsPasswordOnConnect = false;
+        Assert.False(manager1.AutoEnterOsPasswordOnConnect);
+
+        var manager2 = new SettingsManager(_tempSettingsPath);
+        Assert.False(manager2.AutoEnterOsPasswordOnConnect);
+    }
 }

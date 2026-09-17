@@ -147,8 +147,10 @@ public static class DesktopManager
     public static bool IsLockScreenActive()
     {
         string name = GetActiveInputDesktopName();
-        return name.Equals("Winlogon", StringComparison.OrdinalIgnoreCase) ||
-               name.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
+        bool isLock = name.Equals("Winlogon", StringComparison.OrdinalIgnoreCase) ||
+                      name.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
+        _isLockScreenCached = isLock;
+        return isLock;
     }
 
     public sealed class ImpersonationScope : IDisposable
@@ -238,6 +240,10 @@ public static class DesktopManager
                 return false;
             }
 
+            bool isLock = inputName.Equals("Winlogon", StringComparison.OrdinalIgnoreCase) ||
+                          inputName.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
+            _isLockScreenCached = isLock;
+
             if (!inputName.Equals(currentDesktopName, StringComparison.OrdinalIgnoreCase))
             {
                 // Active desktop has changed! Switch current thread to the input desktop
@@ -246,6 +252,8 @@ public static class DesktopManager
                 if (switched)
                 {
                     currentDesktopName = inputName;
+                    // Do not close hInputDesk as the thread is actively using this desktop
+                    hInputDesk = IntPtr.Zero;
                     return true;
                 }
                 else
@@ -261,14 +269,30 @@ public static class DesktopManager
         }
         finally
         {
-            CloseDesktop(hInputDesk);
+            if (hInputDesk != IntPtr.Zero)
+            {
+                CloseDesktop(hInputDesk);
+            }
         }
     }
+
+    private static IntPtr _cachedSystemToken = IntPtr.Zero;
+    private static volatile bool _isLockScreenCached;
 
     private static bool TryImpersonateSystem()
     {
         lock (_syncLock)
         {
+            if (_cachedSystemToken != IntPtr.Zero)
+            {
+                if (ImpersonateLoggedOnUser(_cachedSystemToken))
+                {
+                    return true;
+                }
+                CloseHandle(_cachedSystemToken);
+                _cachedSystemToken = IntPtr.Zero;
+            }
+
             EnsureSeDebugPrivilege();
 
             int currentSessionId = Process.GetCurrentProcess().SessionId;
@@ -297,19 +321,14 @@ public static class DesktopManager
                             {
                                 try
                                 {
-                                    if (DuplicateTokenEx(hToken, GENERIC_ALL, IntPtr.Zero, SecurityImpersonation, TokenImpersonation, out IntPtr hDup))
+                                    if (DuplicateTokenEx(hToken, TOKEN_DUPLICATE | TOKEN_IMPERSONATE | TOKEN_QUERY, IntPtr.Zero, SecurityImpersonation, TokenImpersonation, out IntPtr hDup))
                                     {
-                                        try
+                                        if (ImpersonateLoggedOnUser(hDup))
                                         {
-                                            if (ImpersonateLoggedOnUser(hDup))
-                                            {
-                                                return true;
-                                            }
+                                            _cachedSystemToken = hDup; // Cache duplicate token for reuse
+                                            return true;
                                         }
-                                        finally
-                                        {
-                                            CloseHandle(hDup);
-                                        }
+                                        CloseHandle(hDup);
                                     }
                                 }
                                 finally
@@ -390,6 +409,27 @@ public static class DesktopManager
 
         // 3. Dismiss lock screen wallpaper & wake password prompt:
         // Simulate Space / Enter key to slide up Windows lock screen wallpaper
+        using var injector = new InputInjector();
+        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
+        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Up, false);
+        Thread.Sleep(150);
+        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
+        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
+        Thread.Sleep(250);
+    }
+
+    /// <summary>
+    /// Programmatically wakes the Windows lock screen and automatically inputs the provided OS password
+    /// to authenticate the LogonUI credential provider and unlock the session.
+    /// </summary>
+    public static bool UnlockWithPassword(string password)
+    {
+        if (string.IsNullOrEmpty(password)) return false;
+
+        using var scope = ImpersonateSystemScope();
+        EnsureThreadOnInputDesktop(out _);
+
+        // 1. Wake & dismiss the lock screen wallpaper curtain to reveal LogonUI credential fields
         using (var injector = new InputInjector())
         {
             injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
@@ -397,7 +437,64 @@ public static class DesktopManager
             Thread.Sleep(100);
             injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
             injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
-            Thread.Sleep(100);
+
+            // 2. Allow LogonUI transition animation to reveal and focus the password box
+            Thread.Sleep(350);
+
+            // 3. Clear any existing characters in the password box
+            injector.InjectKeyboardKey(0x1B /* VK_ESCAPE */, Protocol.Messages.KeyAction.Down, false);
+            injector.InjectKeyboardKey(0x1B /* VK_ESCAPE */, Protocol.Messages.KeyAction.Up, false);
+            Thread.Sleep(50);
+
+            // 4. Send the password characters using SendInput directly on the input desktop
+            // using KEYEVENTF_UNICODE for absolute character fidelity
+            foreach (char c in password)
+            {
+                var inputDown = new NativeMethods.INPUT
+                {
+                    type = NativeMethods.INPUT_KEYBOARD,
+                    u = new NativeMethods.InputUnion
+                    {
+                        ki = new NativeMethods.KEYBDINPUT
+                        {
+                            wVk = 0,
+                            wScan = (ushort)c,
+                            dwFlags = 0x0004 /* KEYEVENTF_UNICODE */,
+                            time = 0,
+                            dwExtraInfo = UIntPtr.Zero
+                        }
+                    }
+                };
+
+                var inputUp = new NativeMethods.INPUT
+                {
+                    type = NativeMethods.INPUT_KEYBOARD,
+                    u = new NativeMethods.InputUnion
+                    {
+                        ki = new NativeMethods.KEYBDINPUT
+                        {
+                            wVk = 0,
+                            wScan = (ushort)c,
+                            dwFlags = 0x0004 /* KEYEVENTF_UNICODE */ | NativeMethods.KEYEVENTF_KEYUP,
+                            time = 0,
+                            dwExtraInfo = UIntPtr.Zero
+                        }
+                    }
+                };
+
+                NativeMethods.SendInput(1, new[] { inputDown }, Marshal.SizeOf<NativeMethods.INPUT>());
+                Thread.Sleep(15);
+                NativeMethods.SendInput(1, new[] { inputUp }, Marshal.SizeOf<NativeMethods.INPUT>());
+                Thread.Sleep(20);
+            }
+
+            // 5. Submit the password by sending Enter
+            Thread.Sleep(60);
+            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
+            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
+            Thread.Sleep(250);
         }
+
+        return true;
     }
 }

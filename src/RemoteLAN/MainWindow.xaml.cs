@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private string? _modalTargetIp;
     private int _modalTargetPort;
     private string? _modalTargetDisplayName;
+    private string? _osModalTargetIp;
     private bool _isScanning;
 
     private sealed class NetworkAddressItem
@@ -83,9 +84,29 @@ public partial class MainWindow : Window
 
         _server.Start();
 
+        // Show elevation banner if running under standard user integrity
+        ElevationBanner.Visibility = DesktopManager.IsAdministrator ? Visibility.Collapsed : Visibility.Visible;
+
         // Bind discovered PCs collection to the AnyDesk-style grid
         DiscoveredPcsListBox.ItemsSource = _discoveredAgents;
+
+        // Pre-populate discovered agents grid with saved device history
+        var savedHistory = _settingsManager.GetDeviceHistory();
+        foreach (var dev in savedHistory)
+        {
+            _discoveredAgents.Add(new DiscoveredAgent
+            {
+                MachineName = dev.MachineName,
+                IpAddress = dev.IpAddress,
+                Port = dev.Port > 0 ? dev.Port : ProtocolConstants.DefaultPort,
+                Version = dev.Version,
+                IsOnline = false,
+                LastSeen = dev.LastSeenUtc
+            });
+        }
+
         UpdateEmptyState();
+        UpdateDiscoveredCount();
 
         // Setup continuous automatic LAN discovery (runs every 5 seconds)
         _discoveryTimer.Interval = TimeSpan.FromSeconds(5);
@@ -306,29 +327,41 @@ public partial class MainWindow : Window
 
             Dispatcher.Invoke(() =>
             {
-                // Remove stale devices
-                for (int i = _discoveredAgents.Count - 1; i >= 0; i--)
+                // Mark devices that did not respond to this scan as offline (do NOT remove from history!)
+                foreach (var agent in _discoveredAgents)
                 {
-                    var existing = _discoveredAgents[i];
-                    if (!filteredAgents.Any(a => a.IpAddress.Equals(existing.IpAddress, StringComparison.OrdinalIgnoreCase) && a.Port == existing.Port))
+                    bool stillOnline = filteredAgents.Any(a =>
+                        a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) &&
+                        a.Port == agent.Port);
+                    if (!stillOnline)
                     {
-                        _discoveredAgents.RemoveAt(i);
+                        agent.IsOnline = false;
                     }
                 }
 
-                // Add newly discovered devices or update existing
+                // Add newly discovered devices or update existing to online
                 foreach (var agent in filteredAgents)
                 {
-                    var existing = _discoveredAgents.FirstOrDefault(a => a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) && a.Port == agent.Port);
+                    var existing = _discoveredAgents.FirstOrDefault(a =>
+                        a.IpAddress.Equals(agent.IpAddress, StringComparison.OrdinalIgnoreCase) &&
+                        a.Port == agent.Port);
+
                     if (existing == null)
                     {
+                        agent.IsOnline = true;
+                        agent.LastSeen = DateTime.UtcNow;
                         _discoveredAgents.Add(agent);
                     }
-                    else if (existing.MachineName != agent.MachineName || existing.Version != agent.Version)
+                    else
                     {
-                        int index = _discoveredAgents.IndexOf(existing);
-                        _discoveredAgents[index] = agent;
+                        existing.IsOnline = true;
+                        existing.LastSeen = DateTime.UtcNow;
+                        existing.MachineName = agent.MachineName;
+                        existing.Version = agent.Version;
                     }
+
+                    // Save or update in persistent device history
+                    _settingsManager.UpdateDeviceInHistory(agent);
                 }
 
                 UpdateEmptyState();
@@ -361,17 +394,22 @@ public partial class MainWindow : Window
 
     private void UpdateDiscoveredCount()
     {
-        if (_discoveredAgents.Count == 0)
+        int onlineCount = _discoveredAgents.Count(a => a.IsOnline);
+        int totalCount = _discoveredAgents.Count;
+
+        if (totalCount == 0)
         {
             DiscoveredDevicesCountText.Text = "Scanning local network...";
         }
-        else if (_discoveredAgents.Count == 1)
+        else if (onlineCount == totalCount)
         {
-            DiscoveredDevicesCountText.Text = "1 remote device found on LAN";
+            DiscoveredDevicesCountText.Text = totalCount == 1
+                ? "1 remote device online"
+                : $"{totalCount} remote devices online";
         }
         else
         {
-            DiscoveredDevicesCountText.Text = $"{_discoveredAgents.Count} remote devices found on LAN";
+            DiscoveredDevicesCountText.Text = $"{onlineCount} online • {totalCount} in history";
         }
     }
 
@@ -439,7 +477,36 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
         {
             _settingsManager.RemovePassword(agent.MachineName, agent.IpAddress);
-            SetStatus($"Removed saved password for {agent.MachineName}", Color.FromRgb(100, 116, 139));
+            SetStatus($"Removed saved PIN for {agent.MachineName}", Color.FromRgb(100, 116, 139));
+        }
+    }
+
+    private void CardMenuConfigureOsPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            OpenOsPasswordModal(agent.IpAddress, agent.MachineName);
+        }
+    }
+
+    private void CardMenuForgetOsPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            _settingsManager.RemoveOsPassword(agent.IpAddress);
+            SetStatus($"Removed saved OS password for {agent.MachineName}", Color.FromRgb(100, 116, 139));
+        }
+    }
+
+    private void CardMenuRemoveFromHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
+        {
+            _discoveredAgents.Remove(agent);
+            _settingsManager.RemoveDeviceFromHistory(agent.MachineName, agent.IpAddress, agent.Port);
+            UpdateEmptyState();
+            UpdateDiscoveredCount();
+            SetStatus($"Removed {agent.MachineName} from history", Color.FromRgb(100, 116, 139));
         }
     }
 
@@ -477,6 +544,20 @@ public partial class MainWindow : Window
         bool hasSaved = _settingsManager.HasSavedPassword(displayName, ip);
         ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
 
+        bool hasSavedOs = _settingsManager.HasSavedOsPassword(ip);
+        ModalForgetOsPasswordBtn.Visibility = hasSavedOs ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_settingsManager.TryGetOsPassword(ip, out string? existingOsPass))
+        {
+            ModalOsPasswordBox.Password = existingOsPass;
+            SaveModalOsPasswordCheckBox.IsChecked = true;
+        }
+        else
+        {
+            ModalOsPasswordBox.Password = string.Empty;
+            SaveModalOsPasswordCheckBox.IsChecked = true;
+        }
+
         if (fallbackFromFailedSavedPassword)
         {
             ModalStatusText.Text = "Saved PIN was rejected. Please enter the current PIN:";
@@ -506,7 +587,19 @@ public partial class MainWindow : Window
         {
             _settingsManager.RemovePassword(_modalTargetDisplayName, _modalTargetIp);
             ModalForgetPasswordBtn.Visibility = Visibility.Collapsed;
-            ModalStatusText.Text = "Saved password removed.";
+            ModalStatusText.Text = "Saved connection code removed.";
+            ModalStatusText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ModalForgetOsPasswordBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_modalTargetIp))
+        {
+            _settingsManager.RemoveOsPassword(_modalTargetIp);
+            ModalOsPasswordBox.Password = string.Empty;
+            ModalForgetOsPasswordBtn.Visibility = Visibility.Collapsed;
+            ModalStatusText.Text = "Saved OS password removed.";
             ModalStatusText.Visibility = Visibility.Visible;
         }
     }
@@ -534,10 +627,27 @@ public partial class MainWindow : Window
                 CloseCustomCodeModal_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
+            else if (OsPasswordModalOverlay.Visibility == Visibility.Visible)
+            {
+                CloseOsPasswordModal_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
     }
 
     private void ModalPinTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ModalConnectBtn_Click(this, new RoutedEventArgs());
+        }
+        else if (e.Key == Key.Escape)
+        {
+            ClosePinModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void ModalOsPasswordBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {
@@ -578,6 +688,20 @@ public partial class MainWindow : Window
             {
                 _settingsManager.SavePassword(displayName, ip, pin);
             }
+
+            string osPass = ModalOsPasswordBox.Password;
+            if (!string.IsNullOrEmpty(osPass))
+            {
+                if (SaveModalOsPasswordCheckBox.IsChecked == true)
+                {
+                    _settingsManager.SaveOsPassword(ip, osPass);
+                }
+                else
+                {
+                    _settingsManager.RemoveOsPassword(ip);
+                }
+            }
+
             PinModalOverlay.Visibility = Visibility.Collapsed;
             _modalTargetIp = null;
             _modalTargetDisplayName = null;
@@ -632,7 +756,7 @@ public partial class MainWindow : Window
             if (connected)
             {
                 SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129));
-                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}");
+                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip);
                 sessionWin.Show();
                 SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
                 return (true, null);
@@ -832,6 +956,112 @@ public partial class MainWindow : Window
             Owner = this
         };
         settingsWin.ShowDialog();
+    }
+
+    // =========================================================================
+    // OS PASSWORD CONFIGURATION MODAL LOGIC
+    // =========================================================================
+
+    private void OpenOsPasswordModal(string ip, string displayName)
+    {
+        _osModalTargetIp = ip;
+        OsPasswordModalTargetText.Text = $"For {displayName} ({ip})";
+        if (_settingsManager.TryGetOsPassword(ip, out var existingPass))
+        {
+            OsPasswordModalInput.Password = existingPass;
+            OsPasswordModalForgetBtn.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            OsPasswordModalInput.Password = string.Empty;
+            OsPasswordModalForgetBtn.Visibility = Visibility.Collapsed;
+        }
+        OsPasswordModalStatusText.Visibility = Visibility.Collapsed;
+        OsPasswordModalOverlay.Visibility = Visibility.Visible;
+        OsPasswordModalInput.Focus();
+        OsPasswordModalInput.SelectAll();
+    }
+
+    private void CloseOsPasswordModal_Click(object sender, RoutedEventArgs e)
+    {
+        OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
+        _osModalTargetIp = null;
+    }
+
+    private void OsPasswordModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == OsPasswordModalOverlay)
+        {
+            CloseOsPasswordModal_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void SaveOsPasswordModal_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_osModalTargetIp))
+        {
+            string pass = OsPasswordModalInput.Password;
+            if (string.IsNullOrEmpty(pass))
+            {
+                _settingsManager.RemoveOsPassword(_osModalTargetIp);
+            }
+            else
+            {
+                _settingsManager.SaveOsPassword(_osModalTargetIp, pass);
+            }
+            OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
+            SetStatus("Windows OS password updated", Color.FromRgb(16, 185, 129));
+        }
+    }
+
+    private void OsPasswordModalForgetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_osModalTargetIp))
+        {
+            _settingsManager.RemoveOsPassword(_osModalTargetIp);
+            OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
+            SetStatus("Removed saved OS password", Color.FromRgb(100, 116, 139));
+        }
+    }
+
+    private void OsPasswordModalInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SaveOsPasswordModal_Click(sender, e);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseOsPasswordModal_Click(sender, e);
+        }
+    }
+
+    // =========================================================================
+    // ELEVATION RESTART LOGIC
+    // =========================================================================
+
+    private void RestartAsAdminBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath ?? Environment.GetCommandLineArgs()[0],
+                UseShellExecute = true,
+                Verb = "runas"
+            };
+            System.Diagnostics.Process.Start(startInfo);
+            _isExplicitExit = true;
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Win32Exception)
+        {
+            // User cancelled elevation prompt
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to restart as Administrator: {ex.Message}", "Elevation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)

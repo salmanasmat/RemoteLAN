@@ -398,6 +398,11 @@ public sealed class AgentServer : IDisposable
                         var powerMsg = PowerActionMessage.Deserialize(payload);
                         SystemPowerManager.ExecutePowerAction(powerMsg.Action);
                         break;
+
+                    case MessageType.UnlockWithOsPassword:
+                        var unlockMsg = UnlockWithOsPasswordMessage.Deserialize(payload);
+                        _ = Task.Run(() => DesktopManager.UnlockWithPassword(unlockMsg.Password));
+                        break;
                 }
             }
             catch (OperationCanceledException)

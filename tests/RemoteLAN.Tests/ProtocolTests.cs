@@ -173,6 +173,20 @@ public class ProtocolTests
         Assert.Equal(original.Action, deserialized.Action);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("SimplePassword123")]
+    [InlineData("P@ssw0rd!#$*&()-_=+{}[]|:;<>?,./~`")]
+    [InlineData("UnicodePassword!🔑🚀💻")]
+    public void UnlockWithOsPasswordMessage_RoundTrip_Serialization(string password)
+    {
+        var original = new UnlockWithOsPasswordMessage { Password = password };
+        byte[] bytes = original.Serialize();
+        var deserialized = UnlockWithOsPasswordMessage.Deserialize(bytes);
+
+        Assert.Equal(original.Password, deserialized.Password);
+    }
+
     private sealed class FragmentedStream : Stream
     {
         private readonly byte[] _data;

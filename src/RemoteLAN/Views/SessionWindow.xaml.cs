@@ -18,14 +18,27 @@ public partial class SessionWindow : Window
     private readonly HashSet<MouseButtonType> _activePressedButtons = new();
     private Point _lastSentMousePos = new(-1, -1);
     private bool _isFullscreen;
+    private readonly Security.SettingsManager? _settingsManager;
+    private readonly string? _targetIp;
+    private readonly string _remoteDisplayName;
+    private bool _hasAutoUnlocked;
 
-    public SessionWindow(ControllerClient client, string remoteDisplayName, string endpoint)
+    public SessionWindow(ControllerClient client, string remoteDisplayName, string endpoint, Security.SettingsManager? settingsManager = null, string? targetIp = null)
     {
         InitializeComponent();
 
         _client = client;
+        _settingsManager = settingsManager;
+        _targetIp = targetIp;
+        _remoteDisplayName = remoteDisplayName;
+
         RemoteHostTitleText.Text = $"Connected to {remoteDisplayName}";
         RemoteEndpointText.Text = endpoint;
+
+        if (_settingsManager != null)
+        {
+            MenuAutoUnlockToggle.IsChecked = _settingsManager.AutoEnterOsPasswordOnConnect;
+        }
 
         _renderer = new FrameRenderer();
         _renderer.FrameReady += Renderer_FrameReady;
@@ -39,6 +52,14 @@ public partial class SessionWindow : Window
 
         Deactivated += async (s, e) => await ReleaseActiveInputsAsync();
         ViewportContainer.LostFocus += async (s, e) => await ReleaseActiveInputsAsync();
+
+        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.AutoEnterOsPasswordOnConnect)
+        {
+            if (_settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+            {
+                TriggerAutoUnlockAsync(savedPass);
+            }
+        }
     }
 
     private bool _isUserClosing;
@@ -241,6 +262,149 @@ public partial class SessionWindow : Window
         {
             await Task.Delay(500);
             SendCadBtn.IsEnabled = true;
+        }
+    }
+
+    private void TriggerAutoUnlockAsync(string password)
+    {
+        if (_hasAutoUnlocked) return;
+        _hasAutoUnlocked = true;
+
+        Task.Run(async () =>
+        {
+            await Task.Delay(1500);
+
+            if (_client.State != ControllerState.Connected) return;
+
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                await DoUnlockAsync(password, isAuto: true);
+            });
+        });
+    }
+
+    private async void UnlockOsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+        {
+            await DoUnlockAsync(savedPass);
+        }
+        else
+        {
+            OpenOsPasswordPrompt();
+        }
+    }
+
+    private async void MenuEnterSavedOsPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+        {
+            await DoUnlockAsync(savedPass);
+        }
+        else
+        {
+            OpenOsPasswordPrompt();
+        }
+    }
+
+    private void MenuConfigureOsPassword_Click(object sender, RoutedEventArgs e)
+    {
+        OpenOsPasswordPrompt();
+    }
+
+    private void MenuAutoUnlockToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settingsManager != null)
+        {
+            _settingsManager.AutoEnterOsPasswordOnConnect = MenuAutoUnlockToggle.IsChecked;
+            _settingsManager.Save();
+        }
+    }
+
+    private void OpenOsPasswordPrompt()
+    {
+        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var existingPass))
+        {
+            SessionOsPasswordInput.Password = existingPass;
+            SessionRememberOsPasswordCheckBox.IsChecked = true;
+        }
+        else
+        {
+            SessionOsPasswordInput.Password = string.Empty;
+            SessionRememberOsPasswordCheckBox.IsChecked = true;
+        }
+
+        OsPasswordPromptOverlay.Visibility = Visibility.Visible;
+        SessionOsPasswordInput.Focus();
+        SessionOsPasswordInput.SelectAll();
+    }
+
+    private void CancelSessionOsPasswordPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        OsPasswordPromptOverlay.Visibility = Visibility.Collapsed;
+        ViewportContainer.Focus();
+    }
+
+    private async void SubmitSessionOsPasswordPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        string password = SessionOsPasswordInput.Password;
+        if (string.IsNullOrEmpty(password))
+        {
+            MessageBox.Show("Please enter the Windows OS password.", "Unlock OS", MessageBoxButton.OK, MessageBoxImage.Information);
+            SessionOsPasswordInput.Focus();
+            return;
+        }
+
+        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp))
+        {
+            if (SessionRememberOsPasswordCheckBox.IsChecked == true)
+            {
+                _settingsManager.SaveOsPassword(_targetIp, password);
+            }
+            else
+            {
+                _settingsManager.RemoveOsPassword(_targetIp);
+            }
+        }
+
+        OsPasswordPromptOverlay.Visibility = Visibility.Collapsed;
+        ViewportContainer.Focus();
+
+        await DoUnlockAsync(password);
+    }
+
+    private void SessionOsPasswordInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            SubmitSessionOsPasswordPrompt_Click(sender, e);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CancelSessionOsPasswordPrompt_Click(sender, e);
+        }
+    }
+
+    private async Task DoUnlockAsync(string password, bool isAuto = false)
+    {
+        if (_client.State != ControllerState.Connected) return;
+
+        try
+        {
+            SessionStatusText.Text = isAuto ? "Auto-entering saved OS password..." : "Sending OS password to remote login screen...";
+            await _client.SendUnlockWithOsPasswordAsync(password);
+            SessionStatusText.Text = "OS password sent to remote screen. Unlocking...";
+        }
+        catch (Exception ex)
+        {
+            SessionStatusText.Text = $"Failed to send OS password: {ex.Message}";
+            MessageBox.Show($"Failed to send OS password: {ex.Message}", "Unlock Error", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

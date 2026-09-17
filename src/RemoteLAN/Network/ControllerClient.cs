@@ -225,6 +225,18 @@ public sealed class ControllerClient : IDisposable
         catch { }
     }
 
+    public async ValueTask SendUnlockWithOsPasswordAsync(string password)
+    {
+        if (State != ControllerState.Connected || _networkStream == null) return;
+
+        try
+        {
+            var msg = new UnlockWithOsPasswordMessage { Password = password };
+            await _writer.WriteFrameAsync(_networkStream, MessageType.UnlockWithOsPassword, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
     public void Disconnect(string reason = "Disconnected")
     {
         _sessionCts?.Cancel();

@@ -115,4 +115,42 @@ public class DiscoveryTests
         bool reachable = await LanDiscoveryClient.IsHostReachableAsync("127.0.0.1", freePort, timeoutMs: 500);
         Assert.False(reachable);
     }
+
+    [Fact]
+    public void DiscoveredAgent_OnlineOfflineStatus_UpdatesProperly()
+    {
+        var agent = new DiscoveredAgent
+        {
+            MachineName = "DESKTOP-REMOTE",
+            IpAddress = "192.168.1.50",
+            Port = 9191,
+            Version = "1.0.0",
+            IsOnline = true
+        };
+
+        var changedProperties = new List<string>();
+        agent.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName != null) changedProperties.Add(e.PropertyName);
+        };
+
+        Assert.True(agent.IsOnline);
+        Assert.Equal("#22C55E", agent.StatusDotBrush);
+        Assert.Equal("Online", agent.StatusText);
+        Assert.Equal(1.0, agent.CardOpacity);
+
+        // Transition to offline
+        agent.IsOnline = false;
+
+        Assert.False(agent.IsOnline);
+        Assert.Equal("#94A3B8", agent.StatusDotBrush);
+        Assert.StartsWith("Offline", agent.StatusText);
+        Assert.Equal(0.65, agent.CardOpacity);
+
+        // Verify property change notifications fired
+        Assert.Contains(nameof(DiscoveredAgent.IsOnline), changedProperties);
+        Assert.Contains(nameof(DiscoveredAgent.StatusDotBrush), changedProperties);
+        Assert.Contains(nameof(DiscoveredAgent.StatusText), changedProperties);
+        Assert.Contains(nameof(DiscoveredAgent.CardOpacity), changedProperties);
+    }
 }

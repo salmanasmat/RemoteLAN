@@ -245,6 +245,7 @@
         <!-- Discovered PC Card DataTemplate (Exact match to cards.png) -->
         <DataTemplate x:Key="DiscoveredDeviceCardTemplate">
             <Border Style="{StaticResource DeviceTileBorderStyle}" Width="196" Height="142"
+                    Opacity="{Binding CardOpacity}"
                     SnapsToDevicePixels="True" UseLayoutRounding="True">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -278,7 +279,8 @@
 
                             <!-- Left: Status Dot & IP Address -->
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Width="8" Height="8" CornerRadius="4" Background="{Binding StatusDotBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <Border Width="8" Height="8" CornerRadius="4" Background="{Binding StatusDotBrush}" Margin="0,0,8,0" VerticalAlignment="Center"
+                                        ToolTip="{Binding StatusText}"/>
                                 <TextBlock Text="{Binding IpAddress}" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                             </StackPanel>
@@ -292,7 +294,11 @@
                                         <MenuItem Header="Connect" Click="CardMenuConnect_Click" FontWeight="SemiBold"/>
                                         <MenuItem Header="Copy IP Address" Click="CardMenuCopyIp_Click"/>
                                         <Separator/>
-                                        <MenuItem Header="Forget Saved Password" Click="CardMenuForgetPassword_Click"/>
+                                        <MenuItem Header="Configure OS Password..." Click="CardMenuConfigureOsPassword_Click"/>
+                                        <MenuItem Header="Forget Saved Remote Code" Click="CardMenuForgetPassword_Click"/>
+                                        <MenuItem Header="Forget Saved OS Password" Click="CardMenuForgetOsPassword_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="Remove from History" Click="CardMenuRemoveFromHistory_Click"/>
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>
@@ -343,7 +349,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v1.0.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v1.1.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -470,11 +476,28 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="Connect to Remote Device" FontSize="14" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10"/>
+                    <!-- Elevation Advisory Banner (Visible only when non-elevated) -->
+                    <Border x:Name="ElevationBanner" Grid.Row="0" Margin="0,0,0,12" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="12,8" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="🛡️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="1" Text="Run RemoteLAN as Administrator to view and unlock the Windows sign-in screen remotely."
+                                       FontSize="11.5" Foreground="#1E40AF" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            <Button Grid.Column="2" Content="Restart as Admin" Height="26" Padding="10,0" Style="{StaticResource PrimaryButtonStyle}"
+                                    FontSize="11" Click="RestartAsAdminBtn_Click" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        </Grid>
+                    </Border>
 
-                    <Grid Grid.Row="1">
+                    <TextBlock Grid.Row="1" Text="Connect to Remote Device" FontSize="14" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10"/>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="340"/>
                             <ColumnDefinition Width="14"/>
@@ -635,12 +658,20 @@
                     <!-- Row 2: PIN Input Field -->
                     <StackPanel Grid.Row="2">
                         <TextBlock Text="ACCESS CODE OR PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
-                        <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="42"
-                                 FontSize="18" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
+                        <TextBox x:Name="ModalPinTextBox" Style="{StaticResource ModernTextBoxStyle}" Height="38"
+                                 FontSize="17" FontWeight="Bold" HorizontalContentAlignment="Center" FontFamily="Consolas, Segoe UI"
                                  KeyDown="ModalPinTextBox_KeyDown"/>
-                        <CheckBox x:Name="SaveModalPasswordCheckBox" Content="Remember password for this device" 
-                                  IsChecked="True" FontSize="12" FontWeight="Medium" Foreground="#334155" Margin="0,10,0,0" Cursor="Hand"/>
-                        <TextBlock Text="Enter the access code or unattended password for the remote PC." FontSize="11" Foreground="#94A3B8" Margin="0,5,0,0"/>
+                        <CheckBox x:Name="SaveModalPasswordCheckBox" Content="Remember connection code for this device" 
+                                  IsChecked="True" FontSize="12" FontWeight="Medium" Foreground="#334155" Margin="0,8,0,0" Cursor="Hand"/>
+
+                        <!-- Windows OS Password (Optional) -->
+                        <TextBlock Text="WINDOWS OS PASSWORD (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,12,0,6"/>
+                        <PasswordBox x:Name="ModalOsPasswordBox" Style="{StaticResource ModernPasswordBoxStyle}" Height="38"
+                                     FontSize="14" HorizontalContentAlignment="Center"
+                                     KeyDown="ModalOsPasswordBox_KeyDown"/>
+                        <CheckBox x:Name="SaveModalOsPasswordCheckBox" Content="Remember OS password (for auto-unlock)" 
+                                  IsChecked="True" FontSize="12" FontWeight="Medium" Foreground="#334155" Margin="0,8,0,0" Cursor="Hand"/>
+                        <TextBlock Text="Used to automatically unlock the remote Windows sign-in screen." FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- Row 3: Modal Status / Error Feedback -->
@@ -658,10 +689,14 @@
                             <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="ClosePinModal_Click"/>
                             <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect ➔" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
                         </Grid>
-                        <Button x:Name="ModalForgetPasswordBtn" Content="Forget saved password" 
+                        <Button x:Name="ModalForgetPasswordBtn" Content="Forget saved connection code" 
                                 Background="Transparent" BorderThickness="0" Foreground="#DC2626" FontSize="11" FontWeight="Medium"
                                 Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="Collapsed"
                                 Click="ModalForgetPasswordBtn_Click"/>
+                        <Button x:Name="ModalForgetOsPasswordBtn" Content="Forget saved OS password" 
+                                Background="Transparent" BorderThickness="0" Foreground="#DC2626" FontSize="11" FontWeight="Medium"
+                                Cursor="Hand" HorizontalAlignment="Center" Margin="0,4,0,0" Visibility="Collapsed"
+                                Click="ModalForgetOsPasswordBtn_Click"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -714,6 +749,62 @@
                         <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="CloseCustomCodeModal_Click"/>
                         <Button Grid.Column="2" Content="Apply Code" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="SaveCustomCode_Click"/>
                     </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- OS PASSWORD CONFIGURATION MODAL OVERLAY                           -->
+        <!-- ================================================================= -->
+        <Grid Grid.ColumnSpan="2" x:Name="OsPasswordModalOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1003" MouseDown="OsPasswordModalOverlay_MouseDown"
+              SnapsToDevicePixels="True" UseLayoutRounding="True">
+            <Border Background="#FFFFFF" CornerRadius="12" BorderBrush="#CBD5E1" BorderThickness="1" 
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24"
+                    SnapsToDevicePixels="True" UseLayoutRounding="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="Configure OS Password" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
+                                Cursor="Hand" Click="CloseOsPasswordModal_Click"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" x:Name="OsPasswordModalTargetText" Text="For target PC" FontSize="12" Foreground="#64748B" Margin="0,4,0,16"/>
+
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="WINDOWS OS / SIGN-IN PASSWORD" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,6"/>
+                        <PasswordBox x:Name="OsPasswordModalInput" Style="{StaticResource ModernPasswordBoxStyle}" Height="40"
+                                     FontSize="15" HorizontalContentAlignment="Center" KeyDown="OsPasswordModalInput_KeyDown"/>
+                        <TextBlock Text="Used to automatically unlock the remote Windows sign-in screen." FontSize="11" Foreground="#94A3B8" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" x:Name="OsPasswordModalStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#10B981" 
+                               HorizontalAlignment="Center" Margin="0,10,0,0" Visibility="Collapsed"/>
+
+                    <StackPanel Grid.Row="4" Margin="0,18,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="CloseOsPasswordModal_Click"/>
+                            <Button Grid.Column="2" Content="Save Password" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="SaveOsPasswordModal_Click"/>
+                        </Grid>
+                        <Button x:Name="OsPasswordModalForgetBtn" Content="Remove saved OS password" 
+                                Background="Transparent" BorderThickness="0" Foreground="#DC2626" FontSize="11" FontWeight="Medium"
+                                Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                Click="OsPasswordModalForgetBtn_Click"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

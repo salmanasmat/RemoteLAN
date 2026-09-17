@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using RemoteLAN.Protocol.Discovery;
 
 namespace RemoteLAN.Security;
 
@@ -14,6 +15,9 @@ public sealed class SettingsManager
         public bool UnattendedAccessEnabled { get; set; }
         public string? UnattendedPassword { get; set; }
         public Dictionary<string, string> SavedPasswords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> SavedOsPasswords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<DiscoveredDeviceHistoryItem> DeviceHistory { get; set; } = new();
+        public bool AutoEnterOsPasswordOnConnect { get; set; } = true;
 
         // Security / Unauthorized access protection
         public bool BlockUnauthorizedAttempts { get; set; } = true;
@@ -24,6 +28,15 @@ public sealed class SettingsManager
         // General application preferences
         public bool StartMinimizedToTray { get; set; } = false;
         public bool MinimizeToTrayOnClose { get; set; } = true;
+    }
+
+    public sealed class DiscoveredDeviceHistoryItem
+    {
+        public string MachineName { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+        public int Port { get; set; } = 9191;
+        public string Version { get; set; } = string.Empty;
+        public DateTime LastSeenUtc { get; set; } = DateTime.UtcNow;
     }
 
     private SettingsData _data = new();
@@ -259,6 +272,180 @@ public sealed class SettingsManager
         return TryGetPassword(machineName, ipAddress, out _);
     }
 
+    public bool TryGetOsPassword(string? machineName, string? ipAddress, out string osPassword)
+    {
+        lock (_lock)
+        {
+            if (!string.IsNullOrWhiteSpace(machineName) && _data.SavedOsPasswords.TryGetValue(machineName, out var pass1))
+            {
+                osPassword = pass1;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(ipAddress) && _data.SavedOsPasswords.TryGetValue(ipAddress, out var pass2))
+            {
+                osPassword = pass2;
+                return true;
+            }
+
+            osPassword = string.Empty;
+            return false;
+        }
+    }
+
+    public void SaveOsPassword(string? machineName, string? ipAddress, string osPassword)
+    {
+        if (string.IsNullOrWhiteSpace(osPassword)) return;
+
+        lock (_lock)
+        {
+            if (!string.IsNullOrWhiteSpace(machineName))
+            {
+                _data.SavedOsPasswords[machineName] = osPassword;
+            }
+
+            if (!string.IsNullOrWhiteSpace(ipAddress))
+            {
+                _data.SavedOsPasswords[ipAddress] = osPassword;
+            }
+
+            SaveLocked();
+        }
+    }
+
+    public void RemoveOsPassword(string? machineName, string? ipAddress)
+    {
+        lock (_lock)
+        {
+            bool changed = false;
+            if (!string.IsNullOrWhiteSpace(machineName) && _data.SavedOsPasswords.Remove(machineName))
+            {
+                changed = true;
+            }
+            if (!string.IsNullOrWhiteSpace(ipAddress) && _data.SavedOsPasswords.Remove(ipAddress))
+            {
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SaveLocked();
+            }
+        }
+    }
+
+    public bool HasSavedOsPassword(string? machineName, string? ipAddress)
+    {
+        return TryGetOsPassword(machineName, ipAddress, out _);
+    }
+
+    public bool TryGetOsPassword(string target, out string osPassword)
+    {
+        return TryGetOsPassword(target, target, out osPassword);
+    }
+
+    public void SaveOsPassword(string target, string osPassword)
+    {
+        SaveOsPassword(target, target, osPassword);
+    }
+
+    public void RemoveOsPassword(string target)
+    {
+        RemoveOsPassword(target, target);
+    }
+
+    public bool HasSavedOsPassword(string target)
+    {
+        return HasSavedOsPassword(target, target);
+    }
+
+    public List<DiscoveredDeviceHistoryItem> GetDeviceHistory()
+    {
+        lock (_lock)
+        {
+            return new List<DiscoveredDeviceHistoryItem>(_data.DeviceHistory);
+        }
+    }
+
+    public void UpdateDeviceInHistory(string machineName, string ipAddress, int port, string version)
+    {
+        if (string.IsNullOrWhiteSpace(machineName) || string.IsNullOrWhiteSpace(ipAddress)) return;
+
+        lock (_lock)
+        {
+            var existing = _data.DeviceHistory.FirstOrDefault(d =>
+                string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                existing.MachineName = machineName;
+                existing.IpAddress = ipAddress;
+                existing.Port = port;
+                existing.Version = version;
+                existing.LastSeenUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                _data.DeviceHistory.Add(new DiscoveredDeviceHistoryItem
+                {
+                    MachineName = machineName,
+                    IpAddress = ipAddress,
+                    Port = port,
+                    Version = version,
+                    LastSeenUtc = DateTime.UtcNow
+                });
+            }
+
+            SaveLocked();
+        }
+    }
+
+    public void UpdateDeviceInHistory(DiscoveredAgent agent)
+    {
+        if (agent == null) return;
+        UpdateDeviceInHistory(agent.MachineName, agent.IpAddress, agent.Port, agent.Version);
+    }
+
+    public void RemoveDeviceFromHistory(string target)
+    {
+        RemoveDeviceFromHistory(target, target);
+    }
+
+    public void RemoveDeviceFromHistory(string? machineName, string? ipAddress)
+    {
+        RemoveDeviceFromHistory(machineName, ipAddress, 0);
+    }
+
+    public void RemoveDeviceFromHistory(string? machineName, string? ipAddress, int port)
+    {
+        lock (_lock)
+        {
+            int removed = _data.DeviceHistory.RemoveAll(d =>
+                (!string.IsNullOrWhiteSpace(machineName) && string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(ipAddress) && string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase) && (port <= 0 || d.Port == port)));
+
+            if (removed > 0)
+            {
+                SaveLocked();
+            }
+        }
+    }
+
+    public void Save()
+    {
+        lock (_lock)
+        {
+            SaveLocked();
+        }
+    }
+
+    public bool AutoEnterOsPasswordOnConnect
+    {
+        get { lock (_lock) return _data.AutoEnterOsPasswordOnConnect; }
+        set { lock (_lock) { _data.AutoEnterOsPasswordOnConnect = value; SaveLocked(); } }
+    }
+
     private void Load()
     {
         lock (_lock)
@@ -275,6 +462,14 @@ public sealed class SettingsManager
                         if (_data.SavedPasswords == null)
                         {
                             _data.SavedPasswords = new(StringComparer.OrdinalIgnoreCase);
+                        }
+                        if (_data.SavedOsPasswords == null)
+                        {
+                            _data.SavedOsPasswords = new(StringComparer.OrdinalIgnoreCase);
+                        }
+                        if (_data.DeviceHistory == null)
+                        {
+                            _data.DeviceHistory = new();
                         }
                     }
                 }

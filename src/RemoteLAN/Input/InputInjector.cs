@@ -238,19 +238,11 @@ public sealed class InputInjector : IInputInjector
 
         if (action == KeyAction.Down)
         {
-            // Ignore duplicate KeyDown events for a key already marked as pressed
-            if (!_pressedKeys.TryAdd(virtualKeyCode, true))
-            {
-                return;
-            }
+            _pressedKeys.TryAdd(virtualKeyCode, true);
         }
         else
         {
-            // Inject KeyUp only when appropriate (key was actually pressed)
-            if (!_pressedKeys.TryRemove(virtualKeyCode, out _))
-            {
-                return;
-            }
+            _pressedKeys.TryRemove(virtualKeyCode, out _);
         }
 
         int sessionId = _currentSessionId;

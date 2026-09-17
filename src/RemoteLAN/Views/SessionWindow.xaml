@@ -43,6 +43,18 @@
                     <Button x:Name="SendCadBtn" Content="Ctrl+Alt+Del" Click="SendCadBtn_Click" Padding="12,4"
                             ToolTip="Send Ctrl+Alt+Del to unlock or wake the remote sign-in screen"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
+                    <Button x:Name="UnlockOsBtn" Content="🔑 OS Login" Click="UnlockOsBtn_Click" Padding="12,4"
+                            ToolTip="Auto-enter Windows OS password to unlock remote sign-in screen"
+                            Background="#EFF6FF" Foreground="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" Cursor="Hand" FontWeight="SemiBold" Margin="0,0,10,0">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="🔑 Enter Saved OS Password" Click="MenuEnterSavedOsPassword_Click"/>
+                                <MenuItem Header="⚙️ Set/Change OS Password..." Click="MenuConfigureOsPassword_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuAutoUnlockToggle" Header="Auto-Enter Password When Locked" IsCheckable="True" IsChecked="True" Click="MenuAutoUnlockToggle_Click"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button x:Name="PowerActionsBtn" Content="⚡ Power" Click="PowerActionsBtn_Click" Padding="12,4"
                             ToolTip="Remote system power actions (Lock, Sleep, Restart, Shutdown)"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0">
@@ -90,8 +102,35 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SessionStatusText" Text="Connected • Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v1.0.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+
+        <!-- Quick OS Password Prompt Dialog Overlay -->
+        <Grid Grid.RowSpan="3" x:Name="OsPasswordPromptOverlay" Visibility="Collapsed" 
+              Background="#660F172A" Panel.ZIndex="1000">
+            <Border Background="#FFFFFF" CornerRadius="10" BorderBrush="#CBD5E1" BorderThickness="1"
+                    Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Enter Windows OS Password" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                    <TextBlock Text="To unlock the remote sign-in screen automatically." FontSize="11" Foreground="#64748B" Margin="0,0,0,12"/>
+                    <PasswordBox x:Name="SessionOsPasswordInput" Height="36" FontSize="14" HorizontalContentAlignment="Center"
+                                 Margin="0,0,0,8" KeyDown="SessionOsPasswordInput_KeyDown"/>
+                    <CheckBox x:Name="SessionRememberOsPasswordCheckBox" Content="Save password for this computer" IsChecked="True"
+                              FontSize="11.5" Foreground="#334155" Margin="0,0,0,16"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Cancel" Height="34" Click="CancelSessionOsPasswordPrompt_Click"
+                                Background="#F1F5F9" Foreground="#334155" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand"/>
+                        <Button Grid.Column="2" Content="Unlock Now ➔" Height="34" Click="SubmitSessionOsPasswordPrompt_Click"
+                                Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" FontWeight="SemiBold" Cursor="Hand"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -17,8 +17,11 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment, with a quick-access Sett[...]
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, IP, and online badge — click to connect.
-- **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Graceful[...]
-- **Send Ctrl+Alt+Del / Wake Remote Host**: Dedicated one-click "Ctrl+Alt+Del" toolbar button in the remote session viewer to wake the remote lock screen wallpaper, dismiss the lock curtain, and r[...]
+- **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully handles session locks, UAC prompts, and lock screens across session boundaries.
+- **Windows OS Password Save & Automated Sign-In Screen Unlock**: Save remote Windows user passwords per device. Dedicated `🔑 OS Login` toolbar button in the remote viewer and configurable auto-unlock upon connection automatically dismisses the lock screen curtain, paces keystrokes directly into the credential provider, and logs into Windows seamlessly.
+- **Persistent Device History & Live Status Indicators**: Discovered LAN machines remain saved in device history even when powered down or disconnected. Cards feature real-time status indicators (vibrant green `#22C55E` when online, slate gray `#94A3B8` with card dimming and last-seen timestamp when offline). A 3-dots kebab menu allows configuring OS passwords, forgetting saved credentials, and removing entries from history.
+- **Administrator Elevation Advisory Banner**: Top notification banner when running under standard user integrity with a single-click "Restart as Admin" option to ensure full Winlogon desktop interaction privileges.
+- **Send Ctrl+Alt+Del / Wake Remote Host**: Dedicated one-click "Ctrl+Alt+Del" toolbar button in the remote session viewer to wake the remote lock screen wallpaper, dismiss the lock curtain, and reveal the sign-in prompt.
 - **Natural Mouse Pointer & Dynamic Resolution**: Standard mouse arrow pointer in the remote desktop viewport (eliminating awkward `+` crosshair cursors), with live dynamic resolution adaptation a[...]
 - **Resilient Input State Management & Bi-directional Input Control**: Remote mouse movement, clicks, wheel scrolling, and keyboard keystrokes via Win32 `SendInput` with letterbox/pillarbox coordi[...]
 - **Modern Rounded App Icon & Full Taskbar Integration**: Custom antialiased squircle application icon bundled as multi-resolution `.ico` (16x16 to 256x256) embedded in the Win32 executable, windo[...]
@@ -29,8 +32,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI sca[...]
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and [...]
   - **General & System Preferences**: Windows auto-startup configuration (registry `Run` key), minimize to tray on close, and startup minimization preferences.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.0.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**[...]
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.0.0`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.1.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.1.0`).
 
 ---
 
@@ -43,7 +46,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (73 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (81 tests)
 ```
 
 ### Network Protocols
@@ -56,9 +59,9 @@ RemoteLAN/
 All authentication, desktop video frames, and remote mouse/keyboard inputs multiplex over a single TCP connection:
 
 ```
-┌─────────────────┬───────────────────────────────┬──────────────│[...]
-│ MessageType(1B) │ PayloadLength (4B Big-Endian) │ Payload Bytes (Length bytes)  │
-└─────────────────┴───────────────────────────────┴──────────────│[...]
+┌─────────────────┬───────────────────────────────┬──────────────────────────────┐
+│ MessageType(1B) │ PayloadLength (4B Big-Endian) │ Payload Bytes (Length bytes) │
+└─────────────────┴───────────────────────────────┴──────────────────────────────┘
 ```
 
 ##### Message Types
@@ -71,6 +74,7 @@ All authentication, desktop video frames, and remote mouse/keyboard inputs multi
 - `0x30` — `KeyboardKey` (Virtual Key Code, KeyDown/KeyUp, extended flag)
 - `0x35` — `SendCtrlAltDel` (Remote CAD / wake sign-in screen command)
 - `0x36` — `PowerAction` (Remote system Lock, Sleep, Restart, Shutdown)
+- `0x37` — `UnlockWithOsPassword` (Windows OS lock screen auto-unlock with Unicode password keystroke injection)
 
 ---
 
@@ -104,7 +108,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.0.0.exe`
+`dist/RemoteLAN_Setup_v1.1.0.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download[...]
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.

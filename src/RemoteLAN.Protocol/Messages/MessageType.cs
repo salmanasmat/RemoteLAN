@@ -19,5 +19,6 @@ public enum MessageType : byte
 
     // Lock Screen & System Control
     SendCtrlAltDel = 0x35,
-    PowerAction = 0x36
+    PowerAction = 0x36,
+    UnlockWithOsPassword = 0x37
 }

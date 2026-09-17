@@ -1,5 +1,31 @@
 # Release Notes
 
+## [1.1.0] - 2026-09-17
+
+RemoteLAN **v1.1.0** introduces automated Windows OS password unlocking for remote sign-in screens, eliminates remote lock screen input freezes, and preserves discovered network devices in persistent history with live online/offline status indicators.
+
+### 🚀 New Features
+- **Windows OS Password Auto-Unlock (`0x37`)**: Store Windows OS credentials per remote device and automatically unlock the remote sign-in screen upon connection or via the session toolbar `🔑 OS Login` button.
+- **Persistent Device History & Live Status Indicators**: Discovered LAN machines remain permanently in device history across application restarts. Real-time status indicators show vibrant green (`#22C55E`) when active and slate gray (`#94A3B8`) with card dimming and last-seen timestamps when offline.
+- **Administrator Elevation Advisory Banner**: Informative banner when running under standard user integrity with a single-click "Restart as Admin" button to enable full SYSTEM desktop switching and remote lock screen interaction.
+- **Device History & Credential Management**: 3-dots kebab menu on device cards to configure OS passwords, forget saved PINs or OS credentials, and remove devices from history.
+
+### ⚡ Improvements
+- **Instantaneous SYSTEM Desktop Impersonation**: Cached duplicated SYSTEM tokens in `DesktopManager` to eliminate repeated ~50-100ms process search latency per keystroke/mouse move.
+- **Lock Screen Transition Pacing & Unicode Key Injection**: Wakes the lock screen wallpaper curtain, waits for LogonUI animation, clears existing inputs, and injects exact Unicode characters (`KEYEVENTF_UNICODE`).
+- **Dynamic Thread Desktop Switching**: Resolved thread desktop handle invalidation, ensuring continuous input delivery across `winsta0\Default` and `winsta0\Winlogon`.
+
+### 🐛 Bug Fixes
+- **Unclickable/Untypeable Lock Screen Fixed**: Resolved UIPI drops and thread desktop disassociation when interacting with the remote Windows lock/sign-in screen.
+- **Duplicate Key Keystroke Drops**: Fixed key tracking in `InputInjector` to prevent rapid duplicate characters (e.g. double letters in passwords) from being dropped.
+- **Discovered Devices Disappearing**: Discontinued removing devices that miss a single UDP broadcast; devices now seamlessly transition to offline status and persist in history.
+
+### 🏗️ Infrastructure & Testing
+- **Expanded Test Suite (81 Tests)**: Added new unit and regression tests for OS password serialization, settings persistence, history management, and `DiscoveredAgent` status notifications.
+- **Self-Contained Inno Setup Installer**: Re-built self-contained installer (`dist/RemoteLAN_Setup_v1.1.0.exe`) bundling the full .NET 8 runtime with clean upgrade routines and Windows startup configuration.
+
+---
+
 ## [1.0.0] - 2026-09-16
 
 We are thrilled to announce the official **1.0.0 General Availability** release of **RemoteLAN**! 
