@@ -1,4 +1,4 @@
-﻿namespace RemoteLAN.Protocol.Discovery;
+namespace RemoteLAN.Protocol.Discovery;
 
 public static class DiscoveryConstants
 {
