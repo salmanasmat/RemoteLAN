@@ -88,13 +88,11 @@ public static class DesktopManager
     private static extern void SendSAS(bool asUser);
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern bool CreateProcessAsUser(
+    private static extern bool CreateProcessWithTokenW(
         IntPtr hToken,
+        uint dwLogonFlags,
         string? lpApplicationName,
         string? lpCommandLine,
-        IntPtr lpProcessAttributes,
-        IntPtr lpThreadAttributes,
-        bool bInheritHandles,
         uint dwCreationFlags,
         IntPtr lpEnvironment,
         string? lpCurrentDirectory,
@@ -227,13 +225,11 @@ public static class DesktopManager
                                             cmdLine += $" --config \"{overrideConfigPath}\"";
                                         }
 
-                                        bool result = CreateProcessAsUser(
+                                        bool result = CreateProcessWithTokenW(
                                             hDup,
+                                            0, // LOGON_WITH_PROFILE = 1, but 0 is fine if we don't need profile hive
                                             null,
                                             cmdLine,
-                                            IntPtr.Zero,
-                                            IntPtr.Zero,
-                                            false,
                                             0,
                                             IntPtr.Zero,
                                             null,
@@ -249,7 +245,7 @@ public static class DesktopManager
                                         else
                                         {
                                             int err = Marshal.GetLastWin32Error();
-                                            Debug.WriteLine($"[DesktopManager] CreateProcessAsUser failed: {err}");
+                                            Debug.WriteLine($"[DesktopManager] CreateProcessWithTokenW failed: {err}");
                                         }
                                     }
                                     finally
