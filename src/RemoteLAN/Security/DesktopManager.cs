@@ -51,6 +51,9 @@ public static class DesktopManager
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool CloseDesktop(IntPtr hDesktop);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern short VkKeyScan(char ch);
+
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
 
@@ -678,6 +681,38 @@ public static class DesktopManager
         }
     }
 
+    private static void SendCharAsKeyStroke(char c, int holdMs = 25)
+    {
+        short vkScan = VkKeyScan(c);
+        if (vkScan != -1)
+        {
+            byte vk = (byte)(vkScan & 0xFF);
+            byte shiftState = (byte)((vkScan >> 8) & 0xFF);
+
+            bool needShift = (shiftState & 1) != 0;
+            bool needCtrl = (shiftState & 2) != 0;
+            bool needAlt = (shiftState & 4) != 0;
+
+            if (needCtrl) SendKeyDirect(0x11 /* VK_CONTROL */, keyUp: false);
+            if (needAlt) SendKeyDirect(0x12 /* VK_MENU */, keyUp: false);
+            if (needShift) SendKeyDirect(0x10 /* VK_SHIFT */, keyUp: false);
+
+            if (needCtrl || needAlt || needShift) Thread.Sleep(10);
+
+            SendKeyStrokeDirect(vk, holdMs);
+
+            if (needCtrl || needAlt || needShift) Thread.Sleep(10);
+
+            if (needShift) SendKeyDirect(0x10 /* VK_SHIFT */, keyUp: true);
+            if (needAlt) SendKeyDirect(0x12 /* VK_MENU */, keyUp: true);
+            if (needCtrl) SendKeyDirect(0x11 /* VK_CONTROL */, keyUp: true);
+        }
+        else
+        {
+            SendUnicodeCharDirect(c, holdMs);
+        }
+    }
+
     public static void SendCtrlAltDel()
     {
         // 1. Try SendSAS from sas.dll if permitted
@@ -695,10 +730,10 @@ public static class DesktopManager
         using var scope = ImpersonateSystemScope();
         EnsureThreadOnInputDesktop(out _);
 
-        // 3. Dismiss lock screen wallpaper & wake password prompt
-        SendKeyStrokeDirect(0x20 /* VK_SPACE */, 50);
-        Thread.Sleep(150);
-        SendKeyStrokeDirect(0x0D /* VK_RETURN */, 50);
+        // 3. Dismiss lock screen wallpaper & wake password prompt safely
+        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
+        Thread.Sleep(50);
+        SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
         Thread.Sleep(250);
     }
 
@@ -714,37 +749,39 @@ public static class DesktopManager
         EnsureThreadOnInputDesktop(out string desktopName);
         Debug.WriteLine($"[DesktopManager] UnlockWithPassword starting on desktop: '{desktopName}'");
 
-        // 1. Wake & dismiss the lock screen wallpaper curtain to reveal LogonUI credential fields
-        SendKeyStrokeDirect(0x20 /* VK_SPACE */, 40);
-        Thread.Sleep(150);
-        SendKeyStrokeDirect(0x0D /* VK_RETURN */, 40);
+        // 1. Wake & dismiss the lock screen wallpaper curtain without typing characters or submitting.
+        // VK_ESCAPE dismisses any error dialog or lock screen popup.
+        // VK_UP slides the lock screen curtain up to reveal LogonUI without typing a printable character.
+        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
+        Thread.Sleep(50);
+        SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
 
         // 2. Allow LogonUI transition animation to reveal and focus the password box
-        Thread.Sleep(650);
+        Thread.Sleep(500);
 
         // Re-ensure desktop handle in case LogonUI transitioned desktops
         EnsureThreadOnInputDesktop(out _);
 
-        // 3. Clear any existing characters in the password box
+        // 3. Clear any existing characters in the password box and dismiss popups
         SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
         Thread.Sleep(100);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 30; i++)
         {
-            SendKeyStrokeDirect(0x08 /* VK_BACK */, 15);
-            Thread.Sleep(15);
+            SendKeyStrokeDirect(0x08 /* VK_BACK */, 10);
+            Thread.Sleep(5);
         }
         Thread.Sleep(100);
 
-        // 4. Send the password characters using SendInput directly on the input desktop
-        // using KEYEVENTF_UNICODE for absolute character fidelity
+        // 4. Send the password characters using simulated hardware keystrokes (VK + scan code + Shift/Ctrl/Alt)
+        // so LogonUI credential provider receives full WM_KEYDOWN scan code fidelity
         foreach (char c in password)
         {
-            SendUnicodeCharDirect(c, holdMs: 20);
-            Thread.Sleep(25);
+            SendCharAsKeyStroke(c, holdMs: 25);
+            Thread.Sleep(30);
         }
 
-        // 5. Submit the password by sending Enter
-        Thread.Sleep(150);
+        // 5. Submit the password by sending Enter after the full password has been entered
+        Thread.Sleep(200);
         SendKeyStrokeDirect(0x0D /* VK_RETURN */, 50);
         Thread.Sleep(300);
 
