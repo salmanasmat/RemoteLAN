@@ -272,7 +272,7 @@ public partial class SessionWindow : Window
 
         Task.Run(async () =>
         {
-            await Task.Delay(1500);
+            await Task.Delay(1800);
 
             if (_client.State != ControllerState.Connected) return;
 

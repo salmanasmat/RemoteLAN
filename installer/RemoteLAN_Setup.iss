@@ -1,8 +1,8 @@
-; Inno Setup 6 Script for RemoteLAN
+﻿; Inno Setup 6 Script for RemoteLAN
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.2"
 #define MyAppPublisher "Salman Asmat"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"

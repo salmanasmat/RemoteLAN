@@ -106,7 +106,7 @@ public sealed class InputInjector : IInputInjector
                 }
             };
 
-            IDisposable? scope = DesktopManager.IsLockScreenActive() && DesktopManager.IsAdministrator
+            IDisposable? scope = DesktopManager.IsLockScreenActiveCached && DesktopManager.IsAdministrator
                 ? DesktopManager.ImpersonateSystemScope()
                 : null;
 
@@ -169,7 +169,7 @@ public sealed class InputInjector : IInputInjector
                 }
             };
 
-            IDisposable? scope = DesktopManager.IsLockScreenActive() && DesktopManager.IsAdministrator
+            IDisposable? scope = DesktopManager.IsLockScreenActiveCached && DesktopManager.IsAdministrator
                 ? DesktopManager.ImpersonateSystemScope()
                 : null;
 
@@ -213,7 +213,7 @@ public sealed class InputInjector : IInputInjector
                 }
             };
 
-            IDisposable? scope = DesktopManager.IsLockScreenActive() && DesktopManager.IsAdministrator
+            IDisposable? scope = DesktopManager.IsLockScreenActiveCached && DesktopManager.IsAdministrator
                 ? DesktopManager.ImpersonateSystemScope()
                 : null;
 
@@ -273,7 +273,7 @@ public sealed class InputInjector : IInputInjector
                 }
             };
 
-            IDisposable? scope = DesktopManager.IsLockScreenActive() && DesktopManager.IsAdministrator
+            IDisposable? scope = DesktopManager.IsLockScreenActiveCached && DesktopManager.IsAdministrator
                 ? DesktopManager.ImpersonateSystemScope()
                 : null;
 

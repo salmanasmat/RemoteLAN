@@ -39,7 +39,7 @@ public static class DesktopManager
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr OpenInputDesktop(uint dwFlags, bool fInherit, uint dwDesiredAccess);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern IntPtr OpenDesktop(string lpszDesktop, uint dwFlags, bool fInherit, uint dwDesiredAccess);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -87,6 +87,52 @@ public static class DesktopManager
     [DllImport("sas.dll", SetLastError = true)]
     private static extern void SendSAS(bool asUser);
 
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CreateProcessAsUser(
+        IntPtr hToken,
+        string? lpApplicationName,
+        string? lpCommandLine,
+        IntPtr lpProcessAttributes,
+        IntPtr lpThreadAttributes,
+        bool bInheritHandles,
+        uint dwCreationFlags,
+        IntPtr lpEnvironment,
+        string? lpCurrentDirectory,
+        ref STARTUPINFO lpStartupInfo,
+        out PROCESS_INFORMATION lpProcessInformation);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct STARTUPINFO
+    {
+        public int cb;
+        public string lpReserved;
+        public string lpDesktop;
+        public string lpTitle;
+        public int dwX;
+        public int dwY;
+        public int dwXSize;
+        public int dwYSize;
+        public int dwXCountChars;
+        public int dwYCountChars;
+        public int dwFillAttribute;
+        public int dwFlags;
+        public short wShowWindow;
+        public short cbReserved2;
+        public IntPtr lpReserved2;
+        public IntPtr hStdInput;
+        public IntPtr hStdOutput;
+        public IntPtr hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_INFORMATION
+    {
+        public IntPtr hProcess;
+        public IntPtr hThread;
+        public int dwProcessId;
+        public int dwThreadId;
+    }
+
     private static bool? _isAdmin;
     private static bool _seDebugPrivilegeEnabled;
     private static readonly object _syncLock = new();
@@ -110,6 +156,130 @@ public static class DesktopManager
             }
             return _isAdmin.Value;
         }
+    }
+
+    public static bool IsSystem
+    {
+        get
+        {
+            try
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                return identity.IsSystem;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public static bool RelaunchAsSystem(string[] args, string overrideConfigPath)
+    {
+        if (IsSystem || !IsAdministrator) return false;
+
+        EnsureSeDebugPrivilege();
+
+        int currentSessionId = Process.GetCurrentProcess().SessionId;
+        var winlogonProcs = Process.GetProcessesByName("winlogon");
+
+        foreach (var wp in winlogonProcs)
+        {
+            try
+            {
+                if (wp.SessionId != currentSessionId && winlogonProcs.Length > 1)
+                {
+                    continue;
+                }
+
+                IntPtr hProc = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */ | 0x0400 /* PROCESS_QUERY_INFORMATION */, false, wp.Id);
+                if (hProc == IntPtr.Zero) hProc = OpenProcess(0x0400, false, wp.Id);
+
+                if (hProc != IntPtr.Zero)
+                {
+                    try
+                    {
+                        if (OpenProcessToken(hProc, TOKEN_DUPLICATE | TOKEN_QUERY, out IntPtr hToken))
+                        {
+                            try
+                            {
+                                // TokenPrimary = 1
+                                if (DuplicateTokenEx(hToken, 0x02000000 /* MAXIMUM_ALLOWED */, IntPtr.Zero, SecurityImpersonation, 1, out IntPtr hDup))
+                                {
+                                    try
+                                    {
+                                        var si = new STARTUPINFO();
+                                        si.cb = Marshal.SizeOf<STARTUPINFO>();
+                                        si.lpDesktop = "winsta0\\default";
+
+                                        string exePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                                        if (string.IsNullOrEmpty(exePath)) continue;
+
+                                        // Append --config path so the new instance uses the correct user's config file
+                                        string cmdLine = $"\"{exePath}\"";
+                                        foreach (var arg in args)
+                                        {
+                                            cmdLine += $" \"{arg}\"";
+                                        }
+                                        
+                                        if (!args.Contains("--config") && !string.IsNullOrEmpty(overrideConfigPath))
+                                        {
+                                            cmdLine += $" --config \"{overrideConfigPath}\"";
+                                        }
+
+                                        bool result = CreateProcessAsUser(
+                                            hDup,
+                                            null,
+                                            cmdLine,
+                                            IntPtr.Zero,
+                                            IntPtr.Zero,
+                                            false,
+                                            0,
+                                            IntPtr.Zero,
+                                            null,
+                                            ref si,
+                                            out var pi);
+
+                                        if (result)
+                                        {
+                                            CloseHandle(pi.hProcess);
+                                            CloseHandle(pi.hThread);
+                                            return true;
+                                        }
+                                        else
+                                        {
+                                            int err = Marshal.GetLastWin32Error();
+                                            Debug.WriteLine($"[DesktopManager] CreateProcessAsUser failed: {err}");
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        CloseHandle(hDup);
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                CloseHandle(hToken);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        CloseHandle(hProc);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore probe errors
+            }
+            finally
+            {
+                wp.Dispose();
+            }
+        }
+        return false;
     }
 
     public static string GetDesktopName(IntPtr hDesktop)
@@ -144,13 +314,42 @@ public static class DesktopManager
         }
     }
 
+    [ThreadStatic]
+    private static int t_impersonationDepth;
+
+    [ThreadStatic]
+    private static IntPtr t_attachedDesktopHandle;
+
+    [ThreadStatic]
+    private static string? t_attachedDesktopName;
+
+    private static volatile bool _isLockScreenCached;
+
+    public static bool IsLockScreenActiveCached => _isLockScreenCached;
+
     public static bool IsLockScreenActive()
     {
-        string name = GetActiveInputDesktopName();
-        bool isLock = name.Equals("Winlogon", StringComparison.OrdinalIgnoreCase) ||
-                      name.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
-        _isLockScreenCached = isLock;
-        return isLock;
+        IntPtr hDesk = OpenInputDesktop(0, false, 0x0001 /* DESKTOP_READOBJECTS */);
+        if (hDesk != IntPtr.Zero)
+        {
+            string name = GetDesktopName(hDesk);
+            CloseDesktop(hDesk);
+            bool isLock = name.Equals("Winlogon", StringComparison.OrdinalIgnoreCase) ||
+                          name.Equals("Screen-saver", StringComparison.OrdinalIgnoreCase);
+            _isLockScreenCached = isLock;
+            return isLock;
+        }
+
+        int err = Marshal.GetLastWin32Error();
+        if (err == 5 /* ERROR_ACCESS_DENIED */)
+        {
+            // Access denied on OpenInputDesktop implies the active desktop is an isolated/secure desktop (Winlogon)
+            _isLockScreenCached = true;
+            return true;
+        }
+
+        _isLockScreenCached = false;
+        return false;
     }
 
     public sealed class ImpersonationScope : IDisposable
@@ -160,9 +359,24 @@ public static class DesktopManager
 
         public ImpersonationScope()
         {
+            if (IsSystem)
+            {
+                _wasImpersonated = false;
+                return;
+            }
+
             if (IsAdministrator)
             {
-                _wasImpersonated = TryImpersonateSystem();
+                if (t_impersonationDepth > 0)
+                {
+                    t_impersonationDepth++;
+                    _wasImpersonated = true;
+                }
+                else if (TryImpersonateSystem())
+                {
+                    t_impersonationDepth = 1;
+                    _wasImpersonated = true;
+                }
             }
         }
 
@@ -173,11 +387,16 @@ public static class DesktopManager
                 _disposed = true;
                 if (_wasImpersonated)
                 {
-                    try
+                    t_impersonationDepth--;
+                    if (t_impersonationDepth <= 0)
                     {
-                        RevertToSelf();
+                        t_impersonationDepth = 0;
+                        try
+                        {
+                            RevertToSelf();
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
             }
         }
@@ -195,22 +414,13 @@ public static class DesktopManager
         if (err == 5 /* ERROR_ACCESS_DENIED */ && IsAdministrator)
         {
             // 2. Elevate thread token to SYSTEM via Winlogon token duplication
-            if (TryImpersonateSystem())
-            {
-                try
-                {
-                    hDesk = OpenInputDesktop(0, false, DESKTOP_ALL);
-                    if (hDesk != IntPtr.Zero) return hDesk;
+            using var scope = ImpersonateSystemScope();
+            hDesk = OpenInputDesktop(0, false, DESKTOP_ALL);
+            if (hDesk != IntPtr.Zero) return hDesk;
 
-                    // Fallback to explicit Winlogon desktop handle
-                    hDesk = OpenDesktop("Winlogon", 0, false, DESKTOP_ALL);
-                    if (hDesk != IntPtr.Zero) return hDesk;
-                }
-                finally
-                {
-                    RevertToSelf();
-                }
-            }
+            // Fallback to explicit Winlogon desktop handle
+            hDesk = OpenDesktop("Winlogon", 0, false, DESKTOP_ALL);
+            if (hDesk != IntPtr.Zero) return hDesk;
         }
 
         return IntPtr.Zero;
@@ -247,13 +457,17 @@ public static class DesktopManager
             if (!inputName.Equals(currentDesktopName, StringComparison.OrdinalIgnoreCase))
             {
                 // Active desktop has changed! Switch current thread to the input desktop
-                // while still maintaining SYSTEM impersonation if available.
                 bool switched = SetThreadDesktop(hInputDesk);
                 if (switched)
                 {
                     currentDesktopName = inputName;
-                    // Do not close hInputDesk as the thread is actively using this desktop
-                    hInputDesk = IntPtr.Zero;
+                    if (t_attachedDesktopHandle != IntPtr.Zero && t_attachedDesktopHandle != hInputDesk)
+                    {
+                        CloseDesktop(t_attachedDesktopHandle);
+                    }
+                    t_attachedDesktopHandle = hInputDesk;
+                    t_attachedDesktopName = inputName;
+                    hInputDesk = IntPtr.Zero; // Keep active handle open for the assigned thread
                     return true;
                 }
                 else
@@ -277,7 +491,6 @@ public static class DesktopManager
     }
 
     private static IntPtr _cachedSystemToken = IntPtr.Zero;
-    private static volatile bool _isLockScreenCached;
 
     private static bool TryImpersonateSystem()
     {
@@ -391,6 +604,84 @@ public static class DesktopManager
         }
     }
 
+    private static void SendKeyDirect(ushort virtualKey, bool keyUp)
+    {
+        uint flags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0;
+        ushort scanCode = (ushort)NativeMethods.MapVirtualKey(virtualKey, NativeMethods.MAPVK_VK_TO_VSC);
+        var input = new NativeMethods.INPUT
+        {
+            type = NativeMethods.INPUT_KEYBOARD,
+            u = new NativeMethods.InputUnion
+            {
+                ki = new NativeMethods.KEYBDINPUT
+                {
+                    wVk = virtualKey,
+                    wScan = scanCode,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
+
+        uint res = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>());
+        if (res == 0)
+        {
+            int err = Marshal.GetLastWin32Error();
+            Debug.WriteLine($"[DesktopManager] SendKeyDirect VK=0x{virtualKey:X} keyUp={keyUp} failed: {err}");
+        }
+    }
+
+    private static void SendKeyStrokeDirect(ushort virtualKey, int holdMs = 25)
+    {
+        SendKeyDirect(virtualKey, keyUp: false);
+        if (holdMs > 0) Thread.Sleep(holdMs);
+        SendKeyDirect(virtualKey, keyUp: true);
+    }
+
+    private static void SendUnicodeCharDirect(char c, int holdMs = 20)
+    {
+        var down = new NativeMethods.INPUT
+        {
+            type = NativeMethods.INPUT_KEYBOARD,
+            u = new NativeMethods.InputUnion
+            {
+                ki = new NativeMethods.KEYBDINPUT
+                {
+                    wVk = 0,
+                    wScan = (ushort)c,
+                    dwFlags = NativeMethods.KEYEVENTF_UNICODE,
+                    time = 0,
+                    dwExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
+        var up = new NativeMethods.INPUT
+        {
+            type = NativeMethods.INPUT_KEYBOARD,
+            u = new NativeMethods.InputUnion
+            {
+                ki = new NativeMethods.KEYBDINPUT
+                {
+                    wVk = 0,
+                    wScan = (ushort)c,
+                    dwFlags = NativeMethods.KEYEVENTF_UNICODE | NativeMethods.KEYEVENTF_KEYUP,
+                    time = 0,
+                    dwExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
+
+        uint res1 = NativeMethods.SendInput(1, new[] { down }, Marshal.SizeOf<NativeMethods.INPUT>());
+        if (holdMs > 0) Thread.Sleep(holdMs);
+        uint res2 = NativeMethods.SendInput(1, new[] { up }, Marshal.SizeOf<NativeMethods.INPUT>());
+        if (res1 == 0 || res2 == 0)
+        {
+            int err = Marshal.GetLastWin32Error();
+            Debug.WriteLine($"[DesktopManager] SendUnicodeCharDirect char='{c}' failed: {err}");
+        }
+    }
+
     public static void SendCtrlAltDel()
     {
         // 1. Try SendSAS from sas.dll if permitted
@@ -405,16 +696,13 @@ public static class DesktopManager
         }
 
         // 2. Ensure thread is on the active input desktop
+        using var scope = ImpersonateSystemScope();
         EnsureThreadOnInputDesktop(out _);
 
-        // 3. Dismiss lock screen wallpaper & wake password prompt:
-        // Simulate Space / Enter key to slide up Windows lock screen wallpaper
-        using var injector = new InputInjector();
-        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
-        injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Up, false);
+        // 3. Dismiss lock screen wallpaper & wake password prompt
+        SendKeyStrokeDirect(0x20 /* VK_SPACE */, 50);
         Thread.Sleep(150);
-        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
-        injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
+        SendKeyStrokeDirect(0x0D /* VK_RETURN */, 50);
         Thread.Sleep(250);
     }
 
@@ -427,73 +715,42 @@ public static class DesktopManager
         if (string.IsNullOrEmpty(password)) return false;
 
         using var scope = ImpersonateSystemScope();
-        EnsureThreadOnInputDesktop(out _);
+        EnsureThreadOnInputDesktop(out string desktopName);
+        Debug.WriteLine($"[DesktopManager] UnlockWithPassword starting on desktop: '{desktopName}'");
 
         // 1. Wake & dismiss the lock screen wallpaper curtain to reveal LogonUI credential fields
-        using (var injector = new InputInjector())
+        SendKeyStrokeDirect(0x20 /* VK_SPACE */, 40);
+        Thread.Sleep(150);
+        SendKeyStrokeDirect(0x0D /* VK_RETURN */, 40);
+
+        // 2. Allow LogonUI transition animation to reveal and focus the password box
+        Thread.Sleep(650);
+
+        // Re-ensure desktop handle in case LogonUI transitioned desktops
+        EnsureThreadOnInputDesktop(out _);
+
+        // 3. Clear any existing characters in the password box
+        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
+        Thread.Sleep(100);
+        for (int i = 0; i < 5; i++)
         {
-            injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Down, false);
-            injector.InjectKeyboardKey(0x20 /* VK_SPACE */, Protocol.Messages.KeyAction.Up, false);
-            Thread.Sleep(100);
-            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
-            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
-
-            // 2. Allow LogonUI transition animation to reveal and focus the password box
-            Thread.Sleep(350);
-
-            // 3. Clear any existing characters in the password box
-            injector.InjectKeyboardKey(0x1B /* VK_ESCAPE */, Protocol.Messages.KeyAction.Down, false);
-            injector.InjectKeyboardKey(0x1B /* VK_ESCAPE */, Protocol.Messages.KeyAction.Up, false);
-            Thread.Sleep(50);
-
-            // 4. Send the password characters using SendInput directly on the input desktop
-            // using KEYEVENTF_UNICODE for absolute character fidelity
-            foreach (char c in password)
-            {
-                var inputDown = new NativeMethods.INPUT
-                {
-                    type = NativeMethods.INPUT_KEYBOARD,
-                    u = new NativeMethods.InputUnion
-                    {
-                        ki = new NativeMethods.KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004 /* KEYEVENTF_UNICODE */,
-                            time = 0,
-                            dwExtraInfo = UIntPtr.Zero
-                        }
-                    }
-                };
-
-                var inputUp = new NativeMethods.INPUT
-                {
-                    type = NativeMethods.INPUT_KEYBOARD,
-                    u = new NativeMethods.InputUnion
-                    {
-                        ki = new NativeMethods.KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004 /* KEYEVENTF_UNICODE */ | NativeMethods.KEYEVENTF_KEYUP,
-                            time = 0,
-                            dwExtraInfo = UIntPtr.Zero
-                        }
-                    }
-                };
-
-                NativeMethods.SendInput(1, new[] { inputDown }, Marshal.SizeOf<NativeMethods.INPUT>());
-                Thread.Sleep(15);
-                NativeMethods.SendInput(1, new[] { inputUp }, Marshal.SizeOf<NativeMethods.INPUT>());
-                Thread.Sleep(20);
-            }
-
-            // 5. Submit the password by sending Enter
-            Thread.Sleep(60);
-            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Down, false);
-            injector.InjectKeyboardKey(0x0D /* VK_RETURN */, Protocol.Messages.KeyAction.Up, false);
-            Thread.Sleep(250);
+            SendKeyStrokeDirect(0x08 /* VK_BACK */, 15);
+            Thread.Sleep(15);
         }
+        Thread.Sleep(100);
+
+        // 4. Send the password characters using SendInput directly on the input desktop
+        // using KEYEVENTF_UNICODE for absolute character fidelity
+        foreach (char c in password)
+        {
+            SendUnicodeCharDirect(c, holdMs: 20);
+            Thread.Sleep(25);
+        }
+
+        // 5. Submit the password by sending Enter
+        Thread.Sleep(150);
+        SendKeyStrokeDirect(0x0D /* VK_RETURN */, 50);
+        Thread.Sleep(300);
 
         return true;
     }

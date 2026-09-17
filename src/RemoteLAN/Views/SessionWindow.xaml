@@ -1,10 +1,10 @@
-<Window x:Class="RemoteLAN.Views.SessionWindow"
+﻿<Window x:Class="RemoteLAN.Views.SessionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="RemoteLAN — Remote Desktop Session" Height="760" Width="1100"
+        Title="RemoteLAN â€” Remote Desktop Session" Height="760" Width="1100"
         WindowStartupLocation="CenterScreen"
         Background="#0F172A" Foreground="#F8FAFC"
         FontFamily="Segoe UI"
@@ -43,28 +43,28 @@
                     <Button x:Name="SendCadBtn" Content="Ctrl+Alt+Del" Click="SendCadBtn_Click" Padding="12,4"
                             ToolTip="Send Ctrl+Alt+Del to unlock or wake the remote sign-in screen"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
-                    <Button x:Name="UnlockOsBtn" Content="🔑 OS Login" Click="UnlockOsBtn_Click" Padding="12,4"
+                    <Button x:Name="UnlockOsBtn" Content="ðŸ”‘ OS Login" Click="UnlockOsBtn_Click" Padding="12,4"
                             ToolTip="Auto-enter Windows OS password to unlock remote sign-in screen"
                             Background="#EFF6FF" Foreground="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" Cursor="Hand" FontWeight="SemiBold" Margin="0,0,10,0">
                         <Button.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="🔑 Enter Saved OS Password" Click="MenuEnterSavedOsPassword_Click"/>
-                                <MenuItem Header="⚙️ Set/Change OS Password..." Click="MenuConfigureOsPassword_Click"/>
+                                <MenuItem Header="ðŸ”‘ Enter Saved OS Password" Click="MenuEnterSavedOsPassword_Click"/>
+                                <MenuItem Header="âš™ï¸ Set/Change OS Password..." Click="MenuConfigureOsPassword_Click"/>
                                 <Separator/>
                                 <MenuItem x:Name="MenuAutoUnlockToggle" Header="Auto-Enter Password When Locked" IsCheckable="True" IsChecked="True" Click="MenuAutoUnlockToggle_Click"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button x:Name="PowerActionsBtn" Content="⚡ Power" Click="PowerActionsBtn_Click" Padding="12,4"
+                    <Button x:Name="PowerActionsBtn" Content="âš¡ Power" Click="PowerActionsBtn_Click" Padding="12,4"
                             ToolTip="Remote system power actions (Lock, Sleep, Restart, Shutdown)"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0">
                         <Button.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="🔒 Lock Workstation" Click="PowerLock_Click"/>
-                                <MenuItem Header="🌙 Sleep / Suspend" Click="PowerSleep_Click"/>
+                                <MenuItem Header="ðŸ”’ Lock Workstation" Click="PowerLock_Click"/>
+                                <MenuItem Header="ðŸŒ™ Sleep / Suspend" Click="PowerSleep_Click"/>
                                 <Separator/>
-                                <MenuItem Header="🔄 Restart PC..." Click="PowerRestart_Click"/>
-                                <MenuItem Header="⏻ Shutdown PC..." Click="PowerShutdown_Click"/>
+                                <MenuItem Header="ðŸ”„ Restart PC..." Click="PowerRestart_Click"/>
+                                <MenuItem Header="â» Shutdown PC..." Click="PowerShutdown_Click"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -101,8 +101,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="SessionStatusText" Text="Connected • Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock x:Name="SessionStatusText" Text="Connected â€¢ Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.2" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -126,7 +126,7 @@
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="Cancel" Height="34" Click="CancelSessionOsPasswordPrompt_Click"
                                 Background="#F1F5F9" Foreground="#334155" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand"/>
-                        <Button Grid.Column="2" Content="Unlock Now ➔" Height="34" Click="SubmitSessionOsPasswordPrompt_Click"
+                        <Button Grid.Column="2" Content="Unlock Now âž”" Height="34" Click="SubmitSessionOsPasswordPrompt_Click"
                                 Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" FontWeight="SemiBold" Cursor="Hand"/>
                     </Grid>
                 </StackPanel>

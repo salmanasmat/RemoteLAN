@@ -43,9 +43,11 @@ public sealed class SettingsManager
     private readonly Dictionary<string, int> _failedAttempts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> _lockouts = new(StringComparer.OrdinalIgnoreCase);
 
+    public static string? OverrideFilePath { get; set; }
+
     public SettingsManager(string? filePath = null)
     {
-        _filePath = filePath ?? GetDefaultFilePath();
+        _filePath = filePath ?? OverrideFilePath ?? GetDefaultFilePath();
         Load();
     }
 

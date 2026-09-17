@@ -1,4 +1,4 @@
-<Window x:Class="RemoteLAN.MainWindow"
+﻿<Window x:Class="RemoteLAN.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -349,7 +349,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v1.1.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v1.1.2" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -448,10 +448,10 @@
 
                 <!-- Bottom Action & Settings -->
                 <StackPanel Grid.Row="4" Margin="0,14,0,0">
-                    <Button Content="⚙️  Settings" Style="{StaticResource SecondaryButtonStyle}" Height="36" 
+                    <Button Content="âš™ï¸  Settings" Style="{StaticResource SecondaryButtonStyle}" Height="36" 
                             HorizontalAlignment="Stretch" FontSize="12" FontWeight="SemiBold"
                             Click="OpenSettings_Click" ToolTip="Open Settings (Security, Preferences, and About)"/>
-                    <TextBlock Text="Direct LAN Connection • Private" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                    <TextBlock Text="Direct LAN Connection â€¢ Private" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -487,7 +487,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="🛡️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="0" Text="ðŸ›¡ï¸" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Grid.Column="1" Text="Run RemoteLAN as Administrator to view and unlock the Windows sign-in screen remotely."
                                        FontSize="11.5" Foreground="#1E40AF" VerticalAlignment="Center" TextWrapping="Wrap"/>
                             <Button Grid.Column="2" Content="Restart as Admin" Height="26" Padding="10,0" Style="{StaticResource PrimaryButtonStyle}"
@@ -512,7 +512,7 @@
                         </StackPanel>
 
                         <!-- Connect Action Button -->
-                        <Button Grid.Column="2" x:Name="ConnectRemoteBtn" Content="Connect ➔" 
+                        <Button Grid.Column="2" x:Name="ConnectRemoteBtn" Content="Connect âž”" 
                                 Style="{StaticResource PrimaryButtonStyle}" Height="40" VerticalAlignment="Bottom"
                                 Click="ConnectRemoteBtn_Click"/>
                     </Grid>
@@ -537,7 +537,7 @@
 
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Discovered Devices" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/>
-                        <TextBlock Text="Computers running RemoteLAN on your local network • Click any device to connect" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
+                        <TextBlock Text="Computers running RemoteLAN on your local network â€¢ Click any device to connect" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
                     </StackPanel>
 
                     <!-- Auto-Discovery Active Badge -->
@@ -630,7 +630,7 @@
                     <!-- Row 0: Header with Close Button -->
                     <Grid Grid.Row="0">
                         <TextBlock Text="Connect to Remote Device" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        <Button Content="âœ•" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
                                 Cursor="Hand" Click="ClosePinModal_Click"/>
                     </Grid>
@@ -687,7 +687,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0" Content="Cancel" Height="38" Style="{StaticResource SecondaryButtonStyle}" Click="ClosePinModal_Click"/>
-                            <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect ➔" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
+                            <Button Grid.Column="2" x:Name="ModalConnectBtn" Content="Connect âž”" Height="38" Style="{StaticResource PrimaryButtonStyle}" Click="ModalConnectBtn_Click"/>
                         </Grid>
                         <Button x:Name="ModalForgetPasswordBtn" Content="Forget saved connection code" 
                                 Background="Transparent" BorderThickness="0" Foreground="#DC2626" FontSize="11" FontWeight="Medium"
@@ -722,7 +722,7 @@
 
                     <Grid Grid.Row="0">
                         <TextBlock Text="Set Custom Access Code" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        <Button Content="âœ•" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
                                 Cursor="Hand" Click="CloseCustomCodeModal_Click"/>
                     </Grid>
@@ -773,7 +773,7 @@
 
                     <Grid Grid.Row="0">
                         <TextBlock Text="Configure OS Password" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
-                        <Button Content="✕" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        <Button Content="âœ•" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Background="Transparent" BorderThickness="0" Foreground="#64748B" FontSize="13" FontWeight="Bold"
                                 Cursor="Hand" Click="CloseOsPasswordModal_Click"/>
                     </Grid>

@@ -335,7 +335,10 @@ public partial class MainWindow : Window
                         a.Port == agent.Port);
                     if (!stillOnline)
                     {
-                        agent.IsOnline = false;
+                        if ((DateTime.UtcNow - agent.LastSeen).TotalSeconds > 15)
+                        {
+                            agent.IsOnline = false;
+                        }
                     }
                 }
 

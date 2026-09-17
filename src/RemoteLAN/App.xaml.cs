@@ -17,6 +17,24 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        for (int i = 0; i < e.Args.Length; i++)
+        {
+            if (e.Args[i] == "--config" && i + 1 < e.Args.Length)
+            {
+                Security.SettingsManager.OverrideFilePath = e.Args[i + 1];
+            }
+        }
+
+        if (Security.DesktopManager.IsAdministrator && !Security.DesktopManager.IsSystem)
+        {
+            string configPath = Security.SettingsManager.OverrideFilePath ?? Security.SettingsManager.GetDefaultFilePath();
+            if (Security.DesktopManager.RelaunchAsSystem(e.Args, configPath))
+            {
+                Shutdown();
+                return;
+            }
+        }
+
         bool isFirstInstance;
         try
         {
