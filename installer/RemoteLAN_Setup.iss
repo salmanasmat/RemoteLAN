@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "1.1.2"
+#define MyAppVersion "1.1.3"
 #define MyAppPublisher "Salman Asmat"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"

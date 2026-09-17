@@ -102,7 +102,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SessionStatusText" Text="Connected â€¢ Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.2" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v1.1.3" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 

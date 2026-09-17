@@ -1,8 +1,13 @@
 ﻿# Release Notes
+## [1.1.3] - 2026-09-17
 
-## [1.1.2] - 2026-09-17
+### Changed
+- Minor version bump and installer regeneration.
 
-RemoteLAN **v1.1.2** is a stability and reliability release addressing remote Windows lock screen interactivity and automated credential injection:
+
+## [1.1.3] - 2026-09-17
+
+RemoteLAN **v1.1.3** is a stability and reliability release addressing remote Windows lock screen interactivity and automated credential injection:
 
 ### ðŸ› Bug Fixes
 - **Re-entrant SYSTEM Impersonation Scopes**: Fixed nested `ImpersonationScope` disposal which prematurely reverted the calling thread to the standard user token before `SendInput` could execute on the `Winlogon` desktop.
@@ -12,7 +17,7 @@ RemoteLAN **v1.1.2** is a stability and reliability release addressing remote Wi
 - **Auto-Unlock Timing**: Tuned initial connection auto-unlock pacing to 1800ms to allow video streams and remote display geometry to settle.
 
 ### ðŸ—ï¸ Infrastructure & Packaging
-- **Self-Contained Inno Setup Installer**: Built self-contained installer (`dist/RemoteLAN_Setup_v1.1.2.exe`) with bundled .NET 8 runtime, background auto-startup, and clean upgrade routines.
+- **Self-Contained Inno Setup Installer**: Built self-contained installer (`dist/RemoteLAN_Setup_v1.1.3.exe`) with bundled .NET 8 runtime, background auto-startup, and clean upgrade routines.
 
 ---
 
@@ -73,9 +78,10 @@ RemoteLAN is a high-performance, LAN-only, bidirectional remote desktop solution
 - **Self-Contained Inno Setup Installer**: Production-ready installer bundling the complete .NET 8 desktop runtime, clean version upgrades, and Windows auto-startup configuration.
 - **OWASP Security Hardening**: Constant-time PIN and password validation via `CryptographicOperations.FixedTimeEquals` and parameterized execution via `ProcessStartInfo.ArgumentList`.
 - **Deterministic Test Suite**: Complete test suite of 73 unit, integration, and regression tests running deterministically with xUnit test parallelization controls.
-## [1.1.2] - 2026-09-17
+## [1.1.3] - 2026-09-17
 
 ### Fixed
 - Fixed an issue where the OS password injection and general remote lock screen input were not functioning due to User Interface Privilege Isolation (UIPI) and Secure Desktop restrictions. RemoteLAN now seamlessly elevates to a SYSTEM process within the interactive session on launch, fully unlocking lock screen integration and interactions.
 - Improved the grace period for discovered devices in the network list before they are marked as offline, minimizing UI flicker when UDP discovery packets are delayed or lost.
+
 
