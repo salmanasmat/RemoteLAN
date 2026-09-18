@@ -4,6 +4,14 @@
 
 We take the security of **RemoteLAN** seriously. This document outlines our security practices, recent audit findings, and instructions on reporting vulnerabilities responsibly.
 
+### Supported Versions
+
+| Version | Supported | Notes |
+| :--- | :---: | :--- |
+| **1.2.x** | 🟢 Yes | Active release branch (Current: v1.2.1) |
+| **1.1.x** | 🔴 No | Superseded by v1.2.x |
+| **1.0.x** | 🔴 No | Superseded by v1.1.x |
+
 ### Reporting a Vulnerability
 
 If you discover a security vulnerability in RemoteLAN, please **do not open a public issue**. Instead, report it privately to the maintainers via:
@@ -13,7 +21,7 @@ If you discover a security vulnerability in RemoteLAN, please **do not open a pu
 Please include:
 - A description of the issue and potential impact.
 - Step-by-step reproduction steps or proof of concept.
-- Affected versions (e.g., v1.0.0).
+- Affected versions (e.g., v1.2.1).
 
 We will acknowledge receipt of your report within 48 hours, investigate the issue promptly, and release a patch in accordance with semantic versioning.
 
@@ -21,8 +29,8 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 ## Security Audit Report (OWASP Standards)
 
-- **Audit Date**: March 2026
-- **Audited Target**: RemoteLAN v1.0.0 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
+- **Audit Date**: March 2026 (Updated for v1.2.1 release)
+- **Audited Target**: RemoteLAN v1.2.1 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
 - **Scope**: Full repository security sweep (Secrets, Injection, Authentication/Authorization, Privilege Management, Supply Chain).
 
 ### Executive Summary
@@ -30,7 +38,7 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 | Category | Status | Notes |
 | :--- | :---: | :--- |
 | **Secrets & Keys** | 🟢 PASSED | Zero hardcoded secrets, private keys, or API tokens in codebase. |
-| **Credential Storage** | 🟡 WARNING | Credentials stored in user-scoped `%LocalAppData%` JSON; recommend DPAPI encryption at rest. |
+| **Credential Storage** | 🟡 WARNING | User-scoped `%LocalAppData%` JSON keyed by Machine GUIDs; recommend DPAPI encryption at rest. |
 | **Injection Vulnerabilities** | 🟢 PASSED | Safe typed enum protocol routing; hardened `ProcessStartInfo.ArgumentList` execution. |
 | **Authentication & AuthZ** | 🟢 PASSED | CSPRNG PIN generation, constant-time validation (`FixedTimeEquals`), IP lockout protection. |
 | **Privilege Impersonation** | 🟢 PASSED | Strict RAII token impersonation (`ImpersonationScope`) with guaranteed `RevertToSelf()`. |
@@ -63,12 +71,18 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
   - `AgentServer` and `SettingsManager` implement automatic IP lockout: after 5 consecutive failed authentication attempts (configurable), the offending client IP is temporarily locked out for 10 minutes (configurable).
 * **Session Lifecycle**:
   - Sessions are strictly scoped using incrementing generation IDs (`_sessionGeneration`). Disconnection immediately revokes session privileges and resets hardware input queues.
+* **Machine Identity & Dynamic IP Defense**:
+  - Agents generate and persist a persistent cryptographically unique GUID (`agent.id`). Controllers deduplicate and identify hosts by machine identity rather than transient network IPs, preventing host spoofing and multi-NIC crosstalk.
+  - Multi-identifier credential mapping resolves saved credentials across `MachineId`, `MachineName`, and `IpAddress` cross-referenced through `DeviceHistory`, ensuring credentials cannot be misattributed when DHCP leases change.
 
 #### 4. System Privilege Elevation & Token Impersonation
 * **Scan Result**: 🟢 **PASSED**
 * RemoteLAN interacts with Winlogon desktops to provide remote assistance during lock screens and UAC prompts.
 * **RAII Protection**: `DesktopManager.ImpersonationScope` wraps all Win32 `ImpersonateLoggedOnUser` operations in `IDisposable` scopes with guaranteed `RevertToSelf()` in `finally` blocks.
 * All opened process, token, and desktop handles (`OpenProcessToken`, `DuplicateTokenEx`, `OpenDesktop`, `OpenInputDesktop`) are explicitly closed in dedicated `finally` blocks (`CloseHandle`, `CloseDesktop`).
+* **Lock Screen Keystroke Safety**:
+  - `DesktopManager.UnlockWithPassword` uses non-destructive lock-screen wake (native `SendSAS(false)` and navigation keys) without emitting destructive cancellation keys (`VK_ESCAPE`) that disrupt credential providers.
+  - Normalizes keystroke entry state (detects and disables active CapsLock via `NativeMethods.GetKeyState`) prior to sending unlock sequences, preventing password corruption over the Winlogon boundary.
 
 #### 5. Network Buffer Safety & DoS Prevention (OWASP A04: Insecure Design)
 * **Scan Result**: 🟢 **PASSED**
@@ -76,7 +90,7 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 #### 6. Credential Storage at Rest
 * **Scan Result**: 🟡 **WARNING (Future Hardening Recommended)**
-* Configuration and credentials (unattended access password and saved remote device passwords) are currently stored in JSON at `%LocalAppData%\RemoteLAN\settings.json`.
+* Configuration and credentials (unattended access password and saved remote device passwords) are stored in JSON at `%LocalAppData%\RemoteLAN\settings.json`, partitioned and mapped by persistent Machine GUIDs.
 * While access is restricted by Windows operating system NTFS file permissions to the current user and Administrators:
   - *Recommendation*: Encrypt stored passwords at rest using Windows Data Protection API (DPAPI: `ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) to protect credentials against unauthorized tools running under the same user context.
 
@@ -91,5 +105,5 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 ---
 
 ### Verification
-- Full test suite passed (73 unit, integration, and regression tests).
+- Full test suite passed (89 unit, integration, and regression tests).
 - All security hardening modifications tested and verified.

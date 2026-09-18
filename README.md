@@ -144,4 +144,4 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 
 ## Security
 
-RemoteLAN adheres to strict security standards including constant-time authentication verification (`CryptographicOperations.FixedTimeEquals`), automated brute-force IP lockouts, command-injection prevention, and isolated memory pipelines for input synthesis and credentials.
+RemoteLAN adheres to strict security standards including constant-time authentication verification (`CryptographicOperations.FixedTimeEquals`), automated brute-force IP lockouts, command-injection prevention, and isolated memory pipelines for input synthesis and credentials. For complete details, audit findings, supported versions, and vulnerability reporting procedures, see [SECURITY.md](SECURITY.md).
