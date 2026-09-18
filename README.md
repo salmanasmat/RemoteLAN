@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.1.6-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -18,7 +18,7 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, preferred IP, active connection badge (Ethernet / Wi-Fi), and online badge — click to connect.
 - **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully handles session locks, UAC prompts, and lock screens across session boundaries.
-- **Windows OS Password Save & Automated Sign-In Screen Unlock**: Save remote Windows user passwords per device. Keystrokes are injected via direct hardware scancodes and OS lock screen detection for seamless sign-in unlock.
+- **Windows OS Password Save & Automated Sign-In Screen Unlock**: Save remote Windows user passwords per computer. Credentials resolve across stable Machine GUIDs, hostnames, and IP addresses, surviving DHCP changes and multi-NIC adapter transitions. Lock screen unlock employs native Secure Attention Sequence (`SendSAS`), CapsLock normalization, and hardware scan code synthesis to reliably wake and unlock the Windows logon screen without keystroke drops.
 - **Persistent Device History & Live Status Indicators**: Discovered LAN machines remain saved in device history even when powered down or disconnected. Cards feature real-time status indicators (vibrant green `#22C55E` when online, slate gray `#94A3B8` with card dimming and last-seen timestamp when offline). A 3-dots kebab menu allows configuring OS passwords, forgetting saved credentials, and removing entries from history.
 - **Automatic Administrator Elevation & Secure Desktop Control**: Built-in application manifest and startup elevation routines automatically launch RemoteLAN with Administrator privileges (and seamless transition to `SYSTEM` token via Winlogon duplication) without requiring manual in-app restart clicks, ensuring full access to the Windows Secure Desktop and sign-in screen.
 - **Unified Actions Control Center**: Consolidated `⚡ Actions ▾` menu in the remote viewer toolbar containing **Send Ctrl+Alt+Del**, **🔑 OS Login**, **Send remote input toggle**, **Lock Remote PC on Session End** (off by default), and remote power management (**Lock Workstation**, **Sleep / Suspend**, **Restart PC...**, and **Shut Down PC...**).
@@ -32,8 +32,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and live status countdown.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.1.6, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.1.6`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.2.1, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.2.1`).
 
 ---
 
@@ -46,7 +46,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (87 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (89 tests)
 ```
 
 ### Network Protocols
@@ -74,7 +74,7 @@ All authentication, desktop video frames, and remote mouse/keyboard inputs multi
 - `0x30` — `KeyboardKey` (Virtual Key Code, KeyDown/KeyUp, extended flag)
 - `0x35` — `SendCtrlAltDel` (Remote CAD / wake sign-in screen command)
 - `0x36` — `PowerAction` (Remote system Lock, Sleep, Restart, Shutdown)
-- `0x37` — `UnlockWithOsPassword` (Windows OS lock screen auto-unlock with Unicode password keystroke injection)
+- `0x37` — `UnlockWithOsPassword` (Windows OS lock screen auto-unlock with hardware scan code keystroke injection)
 
 ---
 
@@ -108,11 +108,11 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.1.6.exe`
+`dist/RemoteLAN_Setup_v1.2.1.exe`
 
-- **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download[...]
+- **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
-- **Post-Install Launch Option**: Includes a pre-checked option on the final installer page to launch RemoteLAN immediately into the foreground.
+- **Post-Install Launch Option**: Includes an optional checkbox on the final installer page to launch RemoteLAN immediately into the foreground (unchecked by default to preserve silent background startup).
 - **Automatic Background Startup**: Configures Windows Run key (`--background`) so the host is immediately reachable on boot without displaying the main window.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
 - **System Tray Integration**: Closing the window hides to the notification tray; right-click tray icon to open or exit.
@@ -134,7 +134,7 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 3. **To connect PC A → PC B**:
    - On PC A, PC B automatically appears as a square device tile in the discovered devices grid.
    - Click PC B's tile (or enter PC B's IP in the top header and click **Connect ➔**).
-   - RemoteLAN automatically tests reachability. If reachable, it presents the authentication modal with a **"Remember password for this device"** toggle (or connects instantly if already remembe[...]
+   - RemoteLAN automatically tests reachability. If reachable, it presents the authentication modal with a **"Remember password for this device"** toggle (or connects instantly if already remembered).
    - Enter PC B's session access code or permanent unattended password and click **Connect ➔**.
    - A dedicated remote desktop session window opens with full mouse and keyboard control!
 4. **To connect PC B → PC A**:
@@ -144,4 +144,4 @@ dotnet run --project src/RemoteLAN/RemoteLAN.csproj
 
 ## Security
 
-RemoteLAN adheres to strict security standards including constant-time authentication verification (`CryptographicOperations.FixedTimeEquals`), automated brute-force IP lockouts, command-injectio[...]
+RemoteLAN adheres to strict security standards including constant-time authentication verification (`CryptographicOperations.FixedTimeEquals`), automated brute-force IP lockouts, command-injection prevention, and isolated memory pipelines for input synthesis and credentials.

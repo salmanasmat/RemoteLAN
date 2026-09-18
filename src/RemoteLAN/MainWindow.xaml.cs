@@ -34,6 +34,8 @@ public partial class MainWindow : Window
     private string? _modalTargetDisplayName;
     private DiscoveredAgent? _modalTargetAgent;
     private string? _osModalTargetIp;
+    private DiscoveredAgent? _osModalTargetAgent;
+    private string? _osModalTargetDisplayName;
     private bool _isScanning;
     private IncomingConnectionEventArgs? _currentIncomingRequest;
     private ControllerClient? _pendingApprovalClient;
@@ -542,7 +544,7 @@ public partial class MainWindow : Window
     {
         if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
         {
-            OpenOsPasswordModal(agent.IpAddress, agent.MachineName);
+            OpenOsPasswordModal(agent.IpAddress, agent.MachineName, agent);
         }
     }
 
@@ -550,7 +552,7 @@ public partial class MainWindow : Window
     {
         if (sender is FrameworkElement elem && elem.DataContext is DiscoveredAgent agent)
         {
-            _settingsManager.RemoveOsPassword(agent.IpAddress);
+            _settingsManager.RemoveOsPassword(agent.MachineId, agent.MachineName, agent.IpAddress);
             SetStatus($"Removed saved OS password for {agent.MachineName}", Color.FromRgb(100, 116, 139));
         }
     }
@@ -573,7 +575,7 @@ public partial class MainWindow : Window
         if (_settingsManager.TryGetPassword(agent.MachineName, agent.IpAddress, out string savedPassword) && !string.IsNullOrWhiteSpace(savedPassword))
         {
             SetStatus($"Connecting to {agent.MachineName} (using saved password)...", Color.FromRgb(59, 130, 246));
-            var (success, _) = await ConnectWithCredentialsAsync(agent.IpAddress, agent.Port, savedPassword, agent.MachineName);
+            var (success, _) = await ConnectWithCredentialsAsync(agent.IpAddress, agent.Port, savedPassword, agent.MachineName, agent.MachineId);
 
             if (!success)
             {
@@ -623,16 +625,17 @@ public partial class MainWindow : Window
                     // Remote user accepted incoming connection!
                     if (PinModalOverlay.Visibility == Visibility.Visible && _modalTargetIp == ip)
                     {
+                        string? modalMachineId = _modalTargetAgent?.MachineId;
                         string osPass = ModalOsPasswordBox.Password;
                         if (!string.IsNullOrEmpty(osPass))
                         {
                             if (SaveModalOsPasswordCheckBox.IsChecked == true)
                             {
-                                _settingsManager.SaveOsPassword(ip, osPass);
+                                _settingsManager.SaveOsPassword(modalMachineId, displayName, ip, osPass);
                             }
                             else
                             {
-                                _settingsManager.RemoveOsPassword(ip);
+                                _settingsManager.RemoveOsPassword(modalMachineId, displayName, ip);
                             }
                         }
 
@@ -642,7 +645,7 @@ public partial class MainWindow : Window
                         _pendingApprovalClient = null;
 
                         SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129));
-                        var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip);
+                        var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip, modalMachineId);
                         sessionWin.Show();
                         SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
                     }
@@ -711,10 +714,10 @@ public partial class MainWindow : Window
         bool hasSaved = _settingsManager.HasSavedPassword(displayName, ip);
         ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
 
-        bool hasSavedOs = _settingsManager.HasSavedOsPassword(ip);
+        bool hasSavedOs = _settingsManager.HasSavedOsPassword(agent?.MachineId, displayName, ip);
         ModalForgetOsPasswordBtn.Visibility = hasSavedOs ? Visibility.Visible : Visibility.Collapsed;
 
-        if (_settingsManager.TryGetOsPassword(ip, out string? existingOsPass))
+        if (_settingsManager.TryGetOsPassword(agent?.MachineId, displayName, ip, out string? existingOsPass))
         {
             ModalOsPasswordBox.Password = existingOsPass;
             SaveModalOsPasswordCheckBox.IsChecked = true;
@@ -754,10 +757,11 @@ public partial class MainWindow : Window
             bool hasSaved = _settingsManager.HasSavedPassword(_modalTargetDisplayName, _modalTargetIp);
             ModalForgetPasswordBtn.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
 
-            bool hasSavedOs = _settingsManager.HasSavedOsPassword(_modalTargetIp);
+            string? machineId = _modalTargetAgent?.MachineId;
+            bool hasSavedOs = _settingsManager.HasSavedOsPassword(machineId, _modalTargetDisplayName, _modalTargetIp);
             ModalForgetOsPasswordBtn.Visibility = hasSavedOs ? Visibility.Visible : Visibility.Collapsed;
 
-            if (_settingsManager.TryGetOsPassword(_modalTargetIp, out string? existingOsPass))
+            if (_settingsManager.TryGetOsPassword(machineId, _modalTargetDisplayName, _modalTargetIp, out string? existingOsPass))
             {
                 ModalOsPasswordBox.Password = existingOsPass;
             }
@@ -797,7 +801,7 @@ public partial class MainWindow : Window
     {
         if (!string.IsNullOrWhiteSpace(_modalTargetIp))
         {
-            _settingsManager.RemoveOsPassword(_modalTargetIp);
+            _settingsManager.RemoveOsPassword(_modalTargetAgent?.MachineId, _modalTargetDisplayName, _modalTargetIp);
             ModalOsPasswordBox.Password = string.Empty;
             ModalForgetOsPasswordBtn.Visibility = Visibility.Collapsed;
             ModalStatusText.Text = "Saved OS password removed.";
@@ -888,8 +892,9 @@ public partial class MainWindow : Window
         int port = _modalTargetPort;
         string displayName = _modalTargetDisplayName ?? ip;
 
+        string? modalMachineId = _modalTargetAgent?.MachineId;
         bool remember = SaveModalPasswordCheckBox.IsChecked == true;
-        var (connected, errorMsg) = await ConnectWithCredentialsAsync(ip, port, pin, displayName);
+        var (connected, errorMsg) = await ConnectWithCredentialsAsync(ip, port, pin, displayName, modalMachineId);
 
         if (connected)
         {
@@ -903,17 +908,18 @@ public partial class MainWindow : Window
             {
                 if (SaveModalOsPasswordCheckBox.IsChecked == true)
                 {
-                    _settingsManager.SaveOsPassword(ip, osPass);
+                    _settingsManager.SaveOsPassword(modalMachineId, displayName, ip, osPass);
                 }
                 else
                 {
-                    _settingsManager.RemoveOsPassword(ip);
+                    _settingsManager.RemoveOsPassword(modalMachineId, displayName, ip);
                 }
             }
 
             PinModalOverlay.Visibility = Visibility.Collapsed;
             _modalTargetIp = null;
             _modalTargetDisplayName = null;
+            _modalTargetAgent = null;
         }
         else
         {
@@ -932,7 +938,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<(bool Success, string? ErrorMessage)> ConnectWithCredentialsAsync(string ip, int port, string pin, string displayName)
+    private async Task<(bool Success, string? ErrorMessage)> ConnectWithCredentialsAsync(string ip, int port, string pin, string displayName, string? machineId = null)
     {
         SetStatus($"Connecting to {displayName}...", Color.FromRgb(59, 130, 246));
 
@@ -965,7 +971,7 @@ public partial class MainWindow : Window
             if (connected)
             {
                 SetStatus($"Connected to {displayName}", Color.FromRgb(16, 185, 129));
-                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip);
+                var sessionWin = new SessionWindow(client, displayName, $"{ip}:{port}", _settingsManager, ip, machineId);
                 sessionWin.Show();
                 SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
                 return (true, null);
@@ -1171,11 +1177,13 @@ public partial class MainWindow : Window
     // OS PASSWORD CONFIGURATION MODAL LOGIC
     // =========================================================================
 
-    private void OpenOsPasswordModal(string ip, string displayName)
+    private void OpenOsPasswordModal(string ip, string displayName, DiscoveredAgent? agent = null)
     {
         _osModalTargetIp = ip;
+        _osModalTargetDisplayName = displayName;
+        _osModalTargetAgent = agent;
         OsPasswordModalTargetText.Text = $"For {displayName} ({ip})";
-        if (_settingsManager.TryGetOsPassword(ip, out var existingPass))
+        if (_settingsManager.TryGetOsPassword(agent?.MachineId, displayName, ip, out var existingPass))
         {
             OsPasswordModalInput.Password = existingPass;
             OsPasswordModalForgetBtn.Visibility = Visibility.Visible;
@@ -1195,6 +1203,8 @@ public partial class MainWindow : Window
     {
         OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
         _osModalTargetIp = null;
+        _osModalTargetDisplayName = null;
+        _osModalTargetAgent = null;
     }
 
     private void OsPasswordModalOverlay_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1210,13 +1220,14 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(_osModalTargetIp))
         {
             string pass = OsPasswordModalInput.Password;
+            string? machineId = _osModalTargetAgent?.MachineId;
             if (string.IsNullOrEmpty(pass))
             {
-                _settingsManager.RemoveOsPassword(_osModalTargetIp);
+                _settingsManager.RemoveOsPassword(machineId, _osModalTargetDisplayName, _osModalTargetIp);
             }
             else
             {
-                _settingsManager.SaveOsPassword(_osModalTargetIp, pass);
+                _settingsManager.SaveOsPassword(machineId, _osModalTargetDisplayName, _osModalTargetIp, pass);
             }
             OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
             SetStatus("Windows OS password updated", Color.FromRgb(16, 185, 129));
@@ -1227,7 +1238,8 @@ public partial class MainWindow : Window
     {
         if (!string.IsNullOrWhiteSpace(_osModalTargetIp))
         {
-            _settingsManager.RemoveOsPassword(_osModalTargetIp);
+            string? machineId = _osModalTargetAgent?.MachineId;
+            _settingsManager.RemoveOsPassword(machineId, _osModalTargetDisplayName, _osModalTargetIp);
             OsPasswordModalOverlay.Visibility = Visibility.Collapsed;
             SetStatus("Removed saved OS password", Color.FromRgb(100, 116, 139));
         }

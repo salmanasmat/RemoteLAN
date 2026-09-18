@@ -1,5 +1,29 @@
 # Release Notes
 
+## [1.2.1] - 2026-09-18
+
+RemoteLAN **v1.2.1** is a reliability patch release fixing Windows sign-in lock screen OS password auto-entry, hardware keystroke scan code mapping, and multi-interface credential resolution.
+
+### 🛡️ Fixed & Hardened
+- **Destructive `VK_ESCAPE` Removed from Password Clearing**: Eliminated redundant `VK_ESCAPE` keystroke during lock screen credential field clearing in `DesktopManager.UnlockWithPassword`. On Windows 10 and 11, pressing `Escape` when the sign-in screen is visible slides the screen back down to the lock screen wallpaper clock, causing subsequent password characters to be dropped.
+- **Hardware Scan Code Extended Key Flag**: Fixed `KEYEVENTF_EXTENDEDKEY` on `SendKeyDirect` for navigation and arrow keys (`VK_UP`, etc.). Without extended key flags, Windows maps scan code `0x48` with NumLock active to NumPad 8, injecting the digit `8` into the password box.
+- **Native Secure Attention Sequence (SAS)**: Added official `SendSAS(false)` wake method as the primary lock screen wake mechanism when running with SYSTEM/administrator privileges.
+- **CapsLock State Detection & Normalization**: Added `GetKeyState(VK_CAPITAL)` verification in `UnlockWithPassword` to automatically toggle CapsLock off if active prior to typing password characters, preventing case inversion.
+- **Multi-Identifier OS Password Resolution**: Extended `SettingsManager.TryGetOsPassword`, `SaveOsPassword`, and `RemoveOsPassword` across `MainWindow` and `SessionWindow` to resolve credentials across `MachineId`, `MachineName`, and `IpAddress`, with fallback cross-referencing to `DeviceHistory`. Saved OS passwords now persist seamlessly when connecting across different network adapters (Ethernet vs Wi-Fi) or dynamic DHCP IP address reassignments.
+
+## [1.2.0] - 2026-09-18
+
+RemoteLAN **v1.2.0** introduces persistent Machine ID-based LAN auto-discovery with multi-NIC deduplication, interface type indicators ("Ethernet" / "WiFi"), automatic wired connection preference, and a session-end remote workstation lock option.
+
+### 🚀 New Features
+- **Machine ID Auto-Discovery & Multi-NIC Deduplication**: Agents generate and persist a stable unique Machine GUID (`%APPDATA%\RemoteLAN\agent.id`). Multi-homed machines (Ethernet + Wi-Fi) broadcast their Machine ID, interface type, and adapter IP, enabling controllers to deduplicate responses into **exactly one card** per physical computer.
+- **Preferred-IP Auto-Selection**: Automatically prioritizes high-speed wired Ethernet connections over Wi-Fi by default. In the PIN connection modal, users can view all detected network adapters and switch active endpoints via a dropdown.
+- **Active Connection Badges**: Discovered PC cards display connection type badges (`Ethernet` / `WiFi`) directly in the header.
+- **Lock Remote PC on Session End**: Added a togglable option in the session `⚡ Actions ▾` menu to automatically lock the remote computer upon disconnect (off by default).
+
+### 🛡️ Improvements
+- **Installer Unchecked Postinstall Launch**: Updated installer so launching the main UI immediately upon setup completion is unchecked by default, ensuring silent background operation according to deployment guidelines.
+
 ## [1.1.6] - 2026-09-17
 
 RemoteLAN **v1.1.6** eliminates phantom key typing and mouse movements ("the 'A' bug"), isolates input pipeline test suites from the host operating system, and hardens remote desktop viewport focus.

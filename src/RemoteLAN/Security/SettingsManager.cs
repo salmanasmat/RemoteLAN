@@ -276,20 +276,54 @@ public sealed class SettingsManager
         return TryGetPassword(machineName, ipAddress, out _);
     }
 
-    public bool TryGetOsPassword(string? machineName, string? ipAddress, out string osPassword)
+    public bool TryGetOsPassword(string? machineId, string? machineName, string? ipAddress, out string osPassword)
     {
         lock (_lock)
         {
+            // 1. Check stable MachineId
+            if (!string.IsNullOrWhiteSpace(machineId) && _data.SavedOsPasswords.TryGetValue(machineId, out var passId))
+            {
+                osPassword = passId;
+                return true;
+            }
+
+            // 2. Check MachineName
             if (!string.IsNullOrWhiteSpace(machineName) && _data.SavedOsPasswords.TryGetValue(machineName, out var pass1))
             {
                 osPassword = pass1;
                 return true;
             }
 
+            // 3. Check IpAddress
             if (!string.IsNullOrWhiteSpace(ipAddress) && _data.SavedOsPasswords.TryGetValue(ipAddress, out var pass2))
             {
                 osPassword = pass2;
                 return true;
+            }
+
+            // 4. Cross-reference DeviceHistory to find associated endpoints or identity
+            var historyItem = _data.DeviceHistory.FirstOrDefault(d =>
+                (!string.IsNullOrWhiteSpace(machineId) && string.Equals(d.MachineId, machineId, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(machineName) && string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(ipAddress) && string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase)));
+
+            if (historyItem != null)
+            {
+                if (!string.IsNullOrWhiteSpace(historyItem.MachineId) && _data.SavedOsPasswords.TryGetValue(historyItem.MachineId, out var passHId))
+                {
+                    osPassword = passHId;
+                    return true;
+                }
+                if (!string.IsNullOrWhiteSpace(historyItem.MachineName) && _data.SavedOsPasswords.TryGetValue(historyItem.MachineName, out var passHName))
+                {
+                    osPassword = passHName;
+                    return true;
+                }
+                if (!string.IsNullOrWhiteSpace(historyItem.IpAddress) && _data.SavedOsPasswords.TryGetValue(historyItem.IpAddress, out var passHIp))
+                {
+                    osPassword = passHIp;
+                    return true;
+                }
             }
 
             osPassword = string.Empty;
@@ -297,12 +331,22 @@ public sealed class SettingsManager
         }
     }
 
-    public void SaveOsPassword(string? machineName, string? ipAddress, string osPassword)
+    public bool TryGetOsPassword(string? machineName, string? ipAddress, out string osPassword)
+    {
+        return TryGetOsPassword(null, machineName, ipAddress, out osPassword);
+    }
+
+    public void SaveOsPassword(string? machineId, string? machineName, string? ipAddress, string osPassword)
     {
         if (string.IsNullOrWhiteSpace(osPassword)) return;
 
         lock (_lock)
         {
+            if (!string.IsNullOrWhiteSpace(machineId))
+            {
+                _data.SavedOsPasswords[machineId] = osPassword;
+            }
+
             if (!string.IsNullOrWhiteSpace(machineName))
             {
                 _data.SavedOsPasswords[machineName] = osPassword;
@@ -317,18 +361,30 @@ public sealed class SettingsManager
         }
     }
 
-    public void RemoveOsPassword(string? machineName, string? ipAddress)
+    public void SaveOsPassword(string? machineName, string? ipAddress, string osPassword)
+    {
+        SaveOsPassword(null, machineName, ipAddress, osPassword);
+    }
+
+    public void RemoveOsPassword(string? machineId, string? machineName, string? ipAddress)
     {
         lock (_lock)
         {
             bool changed = false;
-            if (!string.IsNullOrWhiteSpace(machineName) && _data.SavedOsPasswords.Remove(machineName))
+            if (!string.IsNullOrWhiteSpace(machineId) && _data.SavedOsPasswords.Remove(machineId)) changed = true;
+            if (!string.IsNullOrWhiteSpace(machineName) && _data.SavedOsPasswords.Remove(machineName)) changed = true;
+            if (!string.IsNullOrWhiteSpace(ipAddress) && _data.SavedOsPasswords.Remove(ipAddress)) changed = true;
+
+            var historyItem = _data.DeviceHistory.FirstOrDefault(d =>
+                (!string.IsNullOrWhiteSpace(machineId) && string.Equals(d.MachineId, machineId, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(machineName) && string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(ipAddress) && string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase)));
+
+            if (historyItem != null)
             {
-                changed = true;
-            }
-            if (!string.IsNullOrWhiteSpace(ipAddress) && _data.SavedOsPasswords.Remove(ipAddress))
-            {
-                changed = true;
+                if (!string.IsNullOrWhiteSpace(historyItem.MachineId) && _data.SavedOsPasswords.Remove(historyItem.MachineId)) changed = true;
+                if (!string.IsNullOrWhiteSpace(historyItem.MachineName) && _data.SavedOsPasswords.Remove(historyItem.MachineName)) changed = true;
+                if (!string.IsNullOrWhiteSpace(historyItem.IpAddress) && _data.SavedOsPasswords.Remove(historyItem.IpAddress)) changed = true;
             }
 
             if (changed)
@@ -338,29 +394,39 @@ public sealed class SettingsManager
         }
     }
 
+    public void RemoveOsPassword(string? machineName, string? ipAddress)
+    {
+        RemoveOsPassword(null, machineName, ipAddress);
+    }
+
+    public bool HasSavedOsPassword(string? machineId, string? machineName, string? ipAddress)
+    {
+        return TryGetOsPassword(machineId, machineName, ipAddress, out _);
+    }
+
     public bool HasSavedOsPassword(string? machineName, string? ipAddress)
     {
-        return TryGetOsPassword(machineName, ipAddress, out _);
+        return TryGetOsPassword(null, machineName, ipAddress, out _);
     }
 
     public bool TryGetOsPassword(string target, out string osPassword)
     {
-        return TryGetOsPassword(target, target, out osPassword);
+        return TryGetOsPassword(target, target, target, out osPassword);
     }
 
     public void SaveOsPassword(string target, string osPassword)
     {
-        SaveOsPassword(target, target, osPassword);
+        SaveOsPassword(target, target, target, osPassword);
     }
 
     public void RemoveOsPassword(string target)
     {
-        RemoveOsPassword(target, target);
+        RemoveOsPassword(target, target, target);
     }
 
     public bool HasSavedOsPassword(string target)
     {
-        return HasSavedOsPassword(target, target);
+        return HasSavedOsPassword(target, target, target);
     }
 
     public List<DiscoveredDeviceHistoryItem> GetDeviceHistory()

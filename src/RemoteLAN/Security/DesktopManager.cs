@@ -617,6 +617,9 @@ public static class DesktopManager
     private static void SendKeyDirect(ushort virtualKey, bool keyUp)
     {
         uint flags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0;
+        bool isExtended = (virtualKey >= 0x21 && virtualKey <= 0x2E) || virtualKey == 0xA3 || virtualKey == 0xA5;
+        if (isExtended) flags |= NativeMethods.KEYEVENTF_EXTENDEDKEY;
+
         ushort scanCode = (ushort)NativeMethods.MapVirtualKey(virtualKey, NativeMethods.MAPVK_VK_TO_VSC);
         var input = new NativeMethods.INPUT
         {
@@ -767,22 +770,47 @@ public static class DesktopManager
         EnsureThreadOnInputDesktop(out string desktopName);
         Debug.WriteLine($"[DesktopManager] UnlockWithPassword starting on desktop: '{desktopName}'");
 
-        // 1. Wake & dismiss the lock screen wallpaper curtain without typing characters or submitting.
-        // VK_ESCAPE dismisses any error dialog or lock screen popup.
-        // VK_UP slides the lock screen curtain up to reveal LogonUI without typing a printable character.
-        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
-        Thread.Sleep(50);
-        SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
+        // 1. First attempt official Secure Attention Sequence (SAS) if permitted (instant reliable wake)
+        bool sasSent = false;
+        if (SendInputOverride == null)
+        {
+            try
+            {
+                SendSAS(false);
+                sasSent = true;
+                Thread.Sleep(350);
+            }
+            catch
+            {
+                // Fall back to software wake
+            }
+        }
 
-        // 2. Allow LogonUI transition animation to reveal and focus the password box
-        Thread.Sleep(500);
+        // 2. Software wake: Slide the lock screen curtain up to reveal LogonUI without typing a printable character.
+        // VK_UP (with extended key flag) slides the curtain up safely.
+        if (!sasSent)
+        {
+            SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
+            Thread.Sleep(500);
+        }
 
         // Re-ensure desktop handle in case LogonUI transitioned desktops
         EnsureThreadOnInputDesktop(out _);
 
-        // 3. Clear any existing characters in the password box and dismiss popups
-        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
-        Thread.Sleep(100);
+        // 3. Ensure CapsLock is OFF so password character casing is not inverted
+        try
+        {
+            if ((NativeMethods.GetKeyState(0x14 /* VK_CAPITAL */) & 1) != 0)
+            {
+                SendKeyStrokeDirect(0x14 /* VK_CAPITAL */, 25);
+                Thread.Sleep(50);
+            }
+        }
+        catch { }
+
+        // 4. Clear any existing characters in the password box safely.
+        // DO NOT send VK_ESCAPE here because on Windows 10/11, ESCAPE on the login screen
+        // slides the curtain back DOWN to the wallpaper clock!
         for (int i = 0; i < 30; i++)
         {
             SendKeyStrokeDirect(0x08 /* VK_BACK */, 10);
@@ -790,7 +818,7 @@ public static class DesktopManager
         }
         Thread.Sleep(100);
 
-        // 4. Send the password characters using simulated hardware keystrokes (VK + scan code + Shift/Ctrl/Alt)
+        // 5. Send the password characters using simulated hardware keystrokes (VK + scan code + Shift/Ctrl/Alt)
         // so LogonUI credential provider receives full WM_KEYDOWN scan code fidelity
         foreach (char c in password)
         {
@@ -798,7 +826,7 @@ public static class DesktopManager
             Thread.Sleep(30);
         }
 
-        // 5. Submit the password by sending Enter after the full password has been entered
+        // 6. Submit the password by sending Enter after the full password has been entered
         Thread.Sleep(200);
         SendKeyStrokeDirect(0x0D /* VK_RETURN */, 50);
         Thread.Sleep(300);

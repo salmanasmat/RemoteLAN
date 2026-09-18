@@ -187,6 +187,49 @@ public class LockAndResolutionRecoveryTests
     }
 
     [Fact]
+    public void DesktopManager_UnlockWithPassword_ExecutesReliableKeystrokeSequence()
+    {
+        var recordedInputs = new List<NativeMethods.INPUT>();
+        var originalOverride = Security.DesktopManager.SendInputOverride;
+        try
+        {
+            Security.DesktopManager.SendInputOverride = inputs =>
+            {
+                recordedInputs.AddRange(inputs);
+                return (uint)inputs.Length;
+            };
+
+            bool result = Security.DesktopManager.UnlockWithPassword("Secret123!");
+            Assert.True(result);
+            Assert.NotEmpty(recordedInputs);
+
+            // Verify VK_RETURN (0x0D) is sent at the end of the sequence to submit password
+            var lastEnter = recordedInputs.LastOrDefault(i => i.u.ki.wVk == 0x0D && (i.u.ki.dwFlags & NativeMethods.KEYEVENTF_KEYUP) == 0);
+            Assert.NotEqual(default, lastEnter);
+
+            // Verify backspaces were sent to clear existing text
+            bool hasBackspaces = recordedInputs.Any(i => i.u.ki.wVk == 0x08);
+            Assert.True(hasBackspaces);
+
+            // Verify NO VK_ESCAPE (0x1B) is sent after backspaces (which would slide lock curtain back down on Win 10/11)
+            int firstBackIndex = recordedInputs.FindIndex(i => i.u.ki.wVk == 0x08);
+            bool hasEscapeAfterBack = recordedInputs.Skip(firstBackIndex).Any(i => i.u.ki.wVk == 0x1B);
+            Assert.False(hasEscapeAfterBack, "VK_ESCAPE must NOT be sent after clearing the password box as it dismisses LogonUI back to wallpaper");
+
+            // Verify extended keys have KEYEVENTF_EXTENDEDKEY flag set
+            var upKey = recordedInputs.FirstOrDefault(i => i.u.ki.wVk == 0x26 /* VK_UP */);
+            if (upKey.u.ki.wVk == 0x26)
+            {
+                Assert.True((upKey.u.ki.dwFlags & NativeMethods.KEYEVENTF_EXTENDEDKEY) != 0, "VK_UP must have KEYEVENTF_EXTENDEDKEY set");
+            }
+        }
+        finally
+        {
+            Security.DesktopManager.SendInputOverride = originalOverride;
+        }
+    }
+
+    [Fact]
     public void ScreenCapturer_DynamicEngineCoordination_InitializesAndMeasuresDimensions()
     {
         using var capturer = new ScreenCapturer();

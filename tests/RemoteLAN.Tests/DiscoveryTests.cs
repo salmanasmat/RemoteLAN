@@ -190,7 +190,7 @@ public class DiscoveryTests
     public void DiscoveredAgent_TryParse_WithMachineIdAndInterface_ReturnsTrue()
     {
         string machineId = Guid.NewGuid().ToString("D");
-        string raw = $"REMOTELAN_AGENT_V1|WORKSTATION-01|9191|1.1.6|{machineId}|WiFi|192.168.1.150";
+        string raw = $"REMOTELAN_AGENT_V1|WORKSTATION-01|9191|1.2.1|{machineId}|WiFi|192.168.1.150";
         bool result = DiscoveredAgent.TryParse(raw, "192.168.1.150", out var agent);
 
         Assert.True(result);
@@ -214,7 +214,7 @@ public class DiscoveryTests
             MachineName = "MULTI-NIC-PC",
             MachineId = machineId,
             Port = 9191,
-            Version = "1.1.6"
+            Version = "1.2.1"
         };
 
         // Add first endpoint (WiFi)
@@ -271,5 +271,47 @@ public class DiscoveryTests
 
         Assert.Equal("192.168.2.10", agent.IpAddress);
         Assert.Equal("WiFi", agent.InterfaceType);
+    }
+
+    [Fact]
+    public void SettingsManager_OsPassword_ResolvesByMachineIdMachineNameAndCrossReferencedIp()
+    {
+        string tempConfig = Path.Combine(Path.GetTempPath(), $"settings_test_{Guid.NewGuid():N}.json");
+        try
+        {
+            var settings = new Security.SettingsManager(tempConfig);
+
+            // Save using stable MachineId + MachineName + primary IP
+            settings.SaveOsPassword("MACHINE-GUID-ABC", "DESKTOP-OFFICE", "192.168.1.50", "SecurePass456!");
+
+            // 1. Lookup by MachineId directly
+            Assert.True(settings.TryGetOsPassword("MACHINE-GUID-ABC", "DESKTOP-OFFICE", "192.168.1.50", out var pass1));
+            Assert.Equal("SecurePass456!", pass1);
+
+            // 2. Lookup when connected on a different NIC (e.g. WiFi 192.168.1.99)
+            Assert.True(settings.TryGetOsPassword("MACHINE-GUID-ABC", "DESKTOP-OFFICE", "192.168.1.99", out var pass2));
+            Assert.Equal("SecurePass456!", pass2);
+
+            // 3. Lookup when only IP is supplied, but device is recorded in history
+            var historyAgent = new DiscoveredAgent
+            {
+                MachineId = "MACHINE-GUID-ABC",
+                MachineName = "DESKTOP-OFFICE"
+            };
+            historyAgent.AddOrUpdateEndpoint("192.168.1.99", "WiFi");
+            settings.UpdateDeviceInHistory(historyAgent);
+
+            Assert.True(settings.TryGetOsPassword(null, null, "192.168.1.99", out var pass3));
+            Assert.Equal("SecurePass456!", pass3);
+
+            // 4. Remove password cleans up across identifiers
+            settings.RemoveOsPassword("MACHINE-GUID-ABC", "DESKTOP-OFFICE", "192.168.1.50");
+            Assert.False(settings.HasSavedOsPassword("MACHINE-GUID-ABC", "DESKTOP-OFFICE", "192.168.1.50"));
+            Assert.False(settings.HasSavedOsPassword("192.168.1.99"));
+        }
+        finally
+        {
+            if (File.Exists(tempConfig)) File.Delete(tempConfig);
+        }
     }
 }

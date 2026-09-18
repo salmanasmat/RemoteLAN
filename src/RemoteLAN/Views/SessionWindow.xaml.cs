@@ -21,16 +21,18 @@ public partial class SessionWindow : Window
     private bool _isFullscreen;
     private readonly Security.SettingsManager? _settingsManager;
     private readonly string? _targetIp;
+    private readonly string? _machineId;
     private readonly string _remoteDisplayName;
     private bool _hasAutoUnlocked;
 
-    public SessionWindow(ControllerClient client, string remoteDisplayName, string endpoint, Security.SettingsManager? settingsManager = null, string? targetIp = null)
+    public SessionWindow(ControllerClient client, string remoteDisplayName, string endpoint, Security.SettingsManager? settingsManager = null, string? targetIp = null, string? machineId = null)
     {
         InitializeComponent();
 
         _client = client;
         _settingsManager = settingsManager;
         _targetIp = targetIp;
+        _machineId = machineId;
         _remoteDisplayName = remoteDisplayName;
 
         RemoteHostTitleText.Text = $"Connected to {remoteDisplayName}";
@@ -54,9 +56,9 @@ public partial class SessionWindow : Window
         Deactivated += async (s, e) => await ReleaseActiveInputsAsync();
         ViewportContainer.LostFocus += async (s, e) => await ReleaseActiveInputsAsync();
 
-        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.AutoEnterOsPasswordOnConnect)
+        if (_settingsManager != null && _settingsManager.AutoEnterOsPasswordOnConnect)
         {
-            if (_settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+            if (_settingsManager.TryGetOsPassword(_machineId, _remoteDisplayName, _targetIp, out var savedPass))
             {
                 TriggerAutoUnlockAsync(savedPass);
             }
@@ -364,7 +366,7 @@ public partial class SessionWindow : Window
     {
         if (_client.State != ControllerState.Connected) return;
 
-        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+        if (_settingsManager != null && _settingsManager.TryGetOsPassword(_machineId, _remoteDisplayName, _targetIp, out var savedPass))
         {
             await DoUnlockAsync(savedPass);
         }
@@ -378,7 +380,7 @@ public partial class SessionWindow : Window
     {
         if (_client.State != ControllerState.Connected) return;
 
-        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var savedPass))
+        if (_settingsManager != null && _settingsManager.TryGetOsPassword(_machineId, _remoteDisplayName, _targetIp, out var savedPass))
         {
             await DoUnlockAsync(savedPass);
         }
@@ -404,7 +406,7 @@ public partial class SessionWindow : Window
 
     private void OpenOsPasswordPrompt()
     {
-        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp) && _settingsManager.TryGetOsPassword(_targetIp, out var existingPass))
+        if (_settingsManager != null && _settingsManager.TryGetOsPassword(_machineId, _remoteDisplayName, _targetIp, out var existingPass))
         {
             SessionOsPasswordInput.Password = existingPass;
             SessionRememberOsPasswordCheckBox.IsChecked = true;
@@ -436,15 +438,15 @@ public partial class SessionWindow : Window
             return;
         }
 
-        if (_settingsManager != null && !string.IsNullOrEmpty(_targetIp))
+        if (_settingsManager != null)
         {
             if (SessionRememberOsPasswordCheckBox.IsChecked == true)
             {
-                _settingsManager.SaveOsPassword(_targetIp, password);
+                _settingsManager.SaveOsPassword(_machineId, _remoteDisplayName, _targetIp, password);
             }
             else
             {
-                _settingsManager.RemoveOsPassword(_targetIp);
+                _settingsManager.RemoveOsPassword(_machineId, _remoteDisplayName, _targetIp);
             }
         }
 
