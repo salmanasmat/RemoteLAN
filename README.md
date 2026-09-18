@@ -8,6 +8,10 @@
 
 A high-performance, custom, LAN-only remote desktop tool for internal office use built with **C# / .NET 8 / WPF**, designed to work like **AnyDesk** — every installation can connect out to other machines or accept incoming connections over direct TCP sockets. Zero third-party cloud infrastructure or relay servers required.
 
+<p align="center">
+  <img src="RemoteLAN.png" alt="RemoteLAN Interface" width="900" />
+</p>
+
 - **AnyDesk-Style Unified App**: Both PC A and PC B install and run the exact same `RemoteLAN` application.
 - **Bidirectional Control**: Connect from PC A to PC B, or from PC B to PC A, or simultaneously.
 - **Zero Cloud Relay**: Direct TCP socket connections between machines on your trusted local area network.
