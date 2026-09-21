@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Windows;
@@ -41,13 +42,138 @@ public partial class MainWindow : Window
     private ControllerClient? _pendingApprovalClient;
     private CancellationTokenSource? _pendingApprovalCts;
 
-    private sealed class NetworkAddressItem
+    private bool _hasActiveNetwork = true;
+
+    public sealed record DetectedInterfaceInfo(
+        string Name,
+        string Description,
+        NetworkInterfaceType InterfaceType,
+        OperationalStatus Status,
+        bool HasIpv4Gateway,
+        IReadOnlyList<string> Ipv4Addresses);
+
+    public sealed class NetworkAddressItem
     {
         public string IpAddress { get; init; } = string.Empty;
+        public string InterfaceName { get; init; } = string.Empty;
+        public string InterfaceType { get; init; } = "Ethernet";
         public string DisplayText { get; init; } = string.Empty;
         public bool IsPrimary { get; init; }
 
+        public bool IsWifi => InterfaceType.IndexOf("Wi-Fi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                              InterfaceType.IndexOf("Wireless", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                              InterfaceName.IndexOf("Wi-Fi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                              InterfaceName.IndexOf("Wireless", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        public bool IsLoopback => InterfaceType.IndexOf("Loopback", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                  IpAddress == "127.0.0.1";
+
+        public bool IsOffline => InterfaceType.IndexOf("Offline", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                 IpAddress.IndexOf("Offline", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        public string BadgeBackgroundBrush =>
+            IsOffline ? "#F1F5F9" :
+            IsWifi ? "#F0FDF4" :
+            IsLoopback ? "#F1F5F9" :
+            "#EFF6FF";
+
+        public string BadgeForegroundBrush =>
+            IsOffline ? "#94A3B8" :
+            IsWifi ? "#16A34A" :
+            IsLoopback ? "#64748B" :
+            "#2563EB";
+
+        public string BadgeText =>
+            IsOffline ? "Offline" :
+            IsWifi ? "Wi-Fi" :
+            IsLoopback ? "Local" :
+            "Ethernet";
+
+        public string IconData =>
+            IsOffline
+                ? "M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 12,6 C 15.31,6 18,8.69 18,12 C 18,15.31 15.31,18 12,18 C 8.69,18 6,15.31 6,12 C 6,8.69 8.69,6 12,6 Z M 12,10 C 13.1,10 14,10.9 14,12 C 14,13.1 13.1,14 12,14 C 10.9,14 10,13.1 10,12 Z"
+                : IsWifi
+                    ? "M 12,18 A 1.5,1.5 0 1,1 12,21 A 1.5,1.5 0 1,1 12,18 Z M 7.05,14.05 C 9.78,11.32 14.22,11.32 16.95,14.05 L 18.36,12.64 C 14.85,9.13 9.15,9.13 5.64,12.64 Z M 3.51,10.51 C 8.2,5.82 15.8,5.82 20.49,10.51 L 21.9,9.1 C 16.43,3.63 7.57,3.63 2.1,9.1 Z"
+                    : IsLoopback
+                        ? "M 12,4 A 8,8 0 0,1 20,12 L 17,12 A 5,5 0 0,0 12,7 L 12,9.5 L 8,6 L 12,2.5 Z M 12,20 A 8,8 0 0,1 4,12 L 7,12 A 5,5 0 0,0 12,17 L 12,14.5 L 16,18 L 12,21.5 Z"
+                        : "M 3,3 L 17,3 C 18.1,3 19,3.9 19,5 L 19,13 C 19,14.1 18.1,15 17,15 L 13,15 L 13,18 L 15,18 L 15,20 L 5,20 L 5,18 L 7,18 L 7,15 L 3,15 C 1.9,15 1,14.1 1,13 L 1,5 C 1,3.9 1.9,3 3,3 Z M 4,6 L 4,11 L 16,11 L 16,6 Z M 6,8 L 7.5,8 L 7.5,10 L 6,10 Z M 9.25,8 L 10.75,8 L 10.75,10 L 9.25,10 Z M 12.5,8 L 14,8 L 14,10 L 12.5,10 Z";
+
+        public string IconBrush =>
+            IsOffline ? "#94A3B8" :
+            IsWifi ? "#16A34A" :
+            IsLoopback ? "#64748B" :
+            "#2563EB";
+
         public override string ToString() => DisplayText;
+    }
+
+    public static (List<NetworkAddressItem> Items, bool HasActiveNetwork) EvaluateNetworkInterfaces(
+        IEnumerable<DetectedInterfaceInfo> interfaces)
+    {
+        var rawItems = new List<(NetworkAddressItem Item, int Priority)>();
+
+        foreach (var ni in interfaces)
+        {
+            if (ni.Status != OperationalStatus.Up) continue;
+            if (ni.InterfaceType == NetworkInterfaceType.Loopback) continue;
+
+            bool isWifi = ni.InterfaceType == NetworkInterfaceType.Wireless80211 ||
+                          ni.Name.IndexOf("wi-fi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          ni.Name.IndexOf("wireless", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          ni.Description.IndexOf("wi-fi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          ni.Description.IndexOf("wireless", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            string ifType = isWifi ? "Wi-Fi" : "Ethernet";
+
+            // Priority:
+            // 0: Ethernet with Gateway
+            // 1: Ethernet without Gateway
+            // 2: Wi-Fi with Gateway
+            // 3: Wi-Fi without Gateway
+            int priority = !isWifi
+                ? (ni.HasIpv4Gateway ? 0 : 1)
+                : (ni.HasIpv4Gateway ? 2 : 3);
+
+            foreach (var ip in ni.Ipv4Addresses)
+            {
+                if (string.IsNullOrWhiteSpace(ip) || ip.StartsWith("169.254.") || ip == "0.0.0.0" || ip == "127.0.0.1")
+                {
+                    continue;
+                }
+
+                rawItems.Add((new NetworkAddressItem
+                {
+                    IpAddress = ip,
+                    InterfaceName = ni.Name,
+                    InterfaceType = ifType,
+                    DisplayText = $"{ip} ({ni.Name})",
+                    IsPrimary = false
+                }, priority));
+            }
+        }
+
+        if (rawItems.Count == 0)
+        {
+            return (new List<NetworkAddressItem>(), false);
+        }
+
+        var sorted = rawItems
+            .OrderBy(r => r.Priority)
+            .ThenBy(r => r.Item.IpAddress, StringComparer.OrdinalIgnoreCase)
+            .Select(r => r.Item)
+            .ToList();
+
+        var primary = sorted[0];
+        sorted[0] = new NetworkAddressItem
+        {
+            IpAddress = primary.IpAddress,
+            InterfaceName = primary.InterfaceName,
+            InterfaceType = primary.InterfaceType,
+            DisplayText = primary.DisplayText,
+            IsPrimary = true
+        };
+
+        return (sorted, true);
     }
 
     public MainWindow()
@@ -128,11 +254,25 @@ public partial class MainWindow : Window
 
         // Initialize system tray notification icon
         InitializeTrayIcon();
+
+        // Listen for network connectivity and address changes
+        NetworkChange.NetworkAddressChanged += NetworkChange_NetworkAddressChanged;
+        NetworkChange.NetworkAvailabilityChanged += NetworkChange_NetworkAvailabilityChanged;
+    }
+
+    private void NetworkChange_NetworkAddressChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.InvokeAsync(LoadLocalIpAddresses);
+    }
+
+    private void NetworkChange_NetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+    {
+        Dispatcher.InvokeAsync(LoadLocalIpAddresses);
     }
 
     private void LoadLocalIpAddresses()
     {
-        var items = new List<NetworkAddressItem>();
+        var detectedList = new List<DetectedInterfaceInfo>();
 
         foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
         {
@@ -140,48 +280,112 @@ public partial class MainWindow : Window
             if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
 
             var ipProps = ni.GetIPProperties();
-            bool hasGateway = ipProps.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork);
+            bool hasGateway = ipProps.GatewayAddresses.Any(g =>
+                g.Address.AddressFamily == AddressFamily.InterNetwork &&
+                !g.Address.Equals(IPAddress.Any) &&
+                !g.Address.Equals(IPAddress.None));
 
+            var ips = new List<string>();
             foreach (var unicast in ipProps.UnicastAddresses)
             {
                 if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
                 {
-                    string ipStr = unicast.Address.ToString();
-                    _localIpAddresses.Add(ipStr);
-
-                    bool isLikelyLan = ipStr.StartsWith("192.168.") || ipStr.StartsWith("10.") ||
-                                       (hasGateway && !ipStr.StartsWith("169.254."));
-
-                    items.Add(new NetworkAddressItem
-                    {
-                        IpAddress = ipStr,
-                        DisplayText = $"{ipStr} ({ni.Name})",
-                        IsPrimary = isLikelyLan || hasGateway
-                    });
+                    ips.Add(unicast.Address.ToString());
                 }
             }
+
+            detectedList.Add(new DetectedInterfaceInfo(
+                ni.Name,
+                ni.Description,
+                ni.NetworkInterfaceType,
+                ni.OperationalStatus,
+                hasGateway,
+                ips));
         }
 
-        if (items.Count == 0)
+        var (items, hasActive) = EvaluateNetworkInterfaces(detectedList);
+
+        _localIpAddresses.Clear();
+        _localIpAddresses.Add("127.0.0.1");
+        _localIpAddresses.Add("localhost");
+        _localIpAddresses.Add("::1");
+
+        foreach (var item in items)
         {
-            items.Add(new NetworkAddressItem
-            {
-                IpAddress = "127.0.0.1",
-                DisplayText = "127.0.0.1 (Loopback)",
-                IsPrimary = true
-            });
+            _localIpAddresses.Add(item.IpAddress);
         }
 
-        var sorted = items.OrderByDescending(i => i.IsPrimary).ToList();
-        LocalIpsComboBox.ItemsSource = sorted;
-        LocalIpsComboBox.SelectedIndex = 0;
+        if (hasActive && items.Count > 0)
+        {
+            LocalIpsComboBox.ItemsSource = items;
+            LocalIpsComboBox.SelectedIndex = 0;
+            LocalIpsComboBox.IsEnabled = true;
+            SetNetworkConnectedState(true);
+        }
+        else
+        {
+            LocalIpsComboBox.ItemsSource = new List<NetworkAddressItem>
+            {
+                new()
+                {
+                    IpAddress = "Offline",
+                    InterfaceName = "No active connection",
+                    InterfaceType = "Offline",
+                    DisplayText = "No active connection",
+                    IsPrimary = false
+                }
+            };
+            LocalIpsComboBox.SelectedIndex = 0;
+            LocalIpsComboBox.IsEnabled = false;
+            SetNetworkConnectedState(false);
+        }
+    }
+
+    private void SetNetworkConnectedState(bool isConnected)
+    {
+        _hasActiveNetwork = isConnected;
+
+        if (isConnected)
+        {
+            UpdatePinDisplay(_server.PinManager.CurrentPin);
+            CopyPinBtn.IsEnabled = true;
+            RegeneratePinBtn.IsEnabled = true;
+            CustomPinBtn.IsEnabled = true;
+            CopyIpBtn.IsEnabled = true;
+            ConnectRemoteBtn.IsEnabled = true;
+            LocalIpsComboBox.IsEnabled = true;
+            SetStatus("Ready to connect", Color.FromRgb(16, 185, 129));
+            DiscoveredDevicesCountText.Text = "Scanning local network...";
+        }
+        else
+        {
+            PinTextBlock.Text = "------";
+            PinTextBlock.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromInvariantString("#94A3B8")!;
+            CopyPinBtn.IsEnabled = false;
+            RegeneratePinBtn.IsEnabled = false;
+            CustomPinBtn.IsEnabled = false;
+            CopyIpBtn.IsEnabled = false;
+            ConnectRemoteBtn.IsEnabled = false;
+            LocalIpsComboBox.IsEnabled = false;
+            SetStatus("No active network connection", Color.FromRgb(239, 68, 68));
+            DiscoveredDevicesCountText.Text = "Offline";
+        }
     }
 
     private void UpdatePinDisplay(string pin)
     {
         Dispatcher.Invoke(() =>
         {
-            PinTextBlock.Text = pin;
+            if (_hasActiveNetwork)
+            {
+                PinTextBlock.Text = pin;
+                PinTextBlock.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromInvariantString("#0284C7")!;
+            }
+            else
+            {
+                PinTextBlock.Text = "------";
+                PinTextBlock.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromInvariantString("#94A3B8")!;
+            }
         });
     }
 
@@ -276,34 +480,58 @@ public partial class MainWindow : Window
         req?.Reject();
     }
 
-    private void CopyIp_Click(object sender, RoutedEventArgs e)
+    private async void CopyIp_Click(object sender, RoutedEventArgs e)
     {
-        if (LocalIpsComboBox.SelectedItem is NetworkAddressItem item)
+        if (!_hasActiveNetwork) return;
+
+        if (LocalIpsComboBox.SelectedItem is NetworkAddressItem item && !item.IsOffline)
         {
             try
             {
                 Clipboard.SetText(item.IpAddress);
+                if (sender is Button btn)
+                {
+                    string oldText = btn.Content?.ToString() ?? "Copy";
+                    btn.Content = "Copied!";
+                    btn.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x16, 0xA3, 0x4A));
+                    await Task.Delay(1200);
+                    btn.Content = oldText;
+                    btn.ClearValue(Button.ForegroundProperty);
+                }
             }
             catch { }
         }
     }
 
-    private void CopyPin_Click(object sender, RoutedEventArgs e)
+    private async void CopyPin_Click(object sender, RoutedEventArgs e)
     {
+        if (!_hasActiveNetwork) return;
+
         try
         {
             Clipboard.SetText(_server.PinManager.CurrentPin);
+            if (sender is Button btn)
+            {
+                string oldText = btn.Content?.ToString() ?? "Copy";
+                btn.Content = "Copied!";
+                btn.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x16, 0xA3, 0x4A));
+                await Task.Delay(1200);
+                btn.Content = oldText;
+                btn.ClearValue(Button.ForegroundProperty);
+            }
         }
         catch { }
     }
 
     private void RegeneratePin_Click(object sender, RoutedEventArgs e)
     {
+        if (!_hasActiveNetwork) return;
         _server.PinManager.RegeneratePin();
     }
 
     private void CustomPin_Click(object sender, RoutedEventArgs e)
     {
+        if (!_hasActiveNetwork) return;
         CustomCodeTextBox.Text = _server.PinManager.CurrentPin;
         CustomCodeModalStatusText.Visibility = Visibility.Collapsed;
         CustomCodeModalStatusText.Text = string.Empty;
@@ -1017,6 +1245,12 @@ public partial class MainWindow : Window
 
     private async void ConnectRemoteBtn_Click(object sender, RoutedEventArgs e)
     {
+        if (!_hasActiveNetwork)
+        {
+            MessageBox.Show("No active network connection detected. Please connect to a LAN or Wi-Fi network before initiating a connection.", "Offline", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         string rawAddress = TargetIpTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(rawAddress))
         {
@@ -1339,6 +1573,8 @@ public partial class MainWindow : Window
         _discoveryTimer.Stop();
         _server.Dispose();
         CancelPendingApprovalConnection();
+        NetworkChange.NetworkAddressChanged -= NetworkChange_NetworkAddressChanged;
+        NetworkChange.NetworkAvailabilityChanged -= NetworkChange_NetworkAvailabilityChanged;
         base.OnClosed(e);
     }
 }
