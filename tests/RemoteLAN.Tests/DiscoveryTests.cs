@@ -190,7 +190,7 @@ public class DiscoveryTests
     public void DiscoveredAgent_TryParse_WithMachineIdAndInterface_ReturnsTrue()
     {
         string machineId = Guid.NewGuid().ToString("D");
-        string raw = $"REMOTELAN_AGENT_V1|WORKSTATION-01|9191|1.2.1|{machineId}|WiFi|192.168.1.150";
+        string raw = $"REMOTELAN_AGENT_V1|WORKSTATION-01|9191|1.3.0|{machineId}|WiFi|192.168.1.150";
         bool result = DiscoveredAgent.TryParse(raw, "192.168.1.150", out var agent);
 
         Assert.True(result);
@@ -214,7 +214,7 @@ public class DiscoveryTests
             MachineName = "MULTI-NIC-PC",
             MachineId = machineId,
             Port = 9191,
-            Version = "1.2.1"
+            Version = "1.3.0"
         };
 
         // Add first endpoint (WiFi)

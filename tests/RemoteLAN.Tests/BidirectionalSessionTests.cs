@@ -85,4 +85,94 @@ public class BidirectionalSessionTests
             hostB.Stop();
         }
     }
+
+    [Fact]
+    public async Task Chat_ControllerToAgent_MessageDelivered()
+    {
+        const int port = 9215;
+        const int discoveryPort = 9216;
+        const string pin = "778899";
+
+        var injector = new TestInputInjector();
+        using var agent = new AgentServer(port, jpegQuality: 60, initialPin: pin, discoveryPort: discoveryPort, inputInjector: injector);
+        agent.Start();
+
+        try
+        {
+            var chatReceivedTcs = new TaskCompletionSource<RemoteLAN.Protocol.Messages.ChatMessagePayload>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            agent.ChatMessageReceived += msg => chatReceivedTcs.TrySetResult(msg);
+
+            using var controller = new ControllerClient();
+            await controller.ConnectAsync("127.0.0.1", port, pin);
+            Assert.Equal(ControllerState.Connected, controller.State);
+
+            // Wait for first frame so session is fully established
+            var frameTcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            controller.FrameReceived += b => frameTcs.TrySetResult(b);
+            await Task.WhenAny(frameTcs.Task, Task.Delay(5000));
+
+            const string testMsg = "Hello Agent, this is the Controller!";
+            await controller.SendChatMessageAsync(testMsg);
+
+            var completed = await Task.WhenAny(chatReceivedTcs.Task, Task.Delay(4000));
+            Assert.Same(chatReceivedTcs.Task, completed);
+
+            var received = await chatReceivedTcs.Task;
+            Assert.Equal(testMsg, received.Text);
+            Assert.Equal(Environment.MachineName, received.SenderName);
+
+            controller.Disconnect();
+        }
+        finally
+        {
+            agent.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Chat_AgentToController_MessageDelivered()
+    {
+        const int port = 9217;
+        const int discoveryPort = 9218;
+        const string pin = "001122";
+
+        var injector = new TestInputInjector();
+        using var agent = new AgentServer(port, jpegQuality: 60, initialPin: pin, discoveryPort: discoveryPort, inputInjector: injector);
+        agent.Start();
+
+        try
+        {
+            using var controller = new ControllerClient();
+            var chatReceivedTcs = new TaskCompletionSource<RemoteLAN.Protocol.Messages.ChatMessagePayload>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            controller.ChatMessageReceived += msg => chatReceivedTcs.TrySetResult(msg);
+
+            await controller.ConnectAsync("127.0.0.1", port, pin);
+            Assert.Equal(ControllerState.Connected, controller.State);
+
+            // Wait for first frame so session is fully established
+            var frameTcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            controller.FrameReceived += b => frameTcs.TrySetResult(b);
+            await Task.WhenAny(frameTcs.Task, Task.Delay(5000));
+
+            const string testMsg = "Hello Controller, this is the Agent!";
+            await agent.SendChatMessageAsync(testMsg);
+
+            var completed = await Task.WhenAny(chatReceivedTcs.Task, Task.Delay(4000));
+            Assert.Same(chatReceivedTcs.Task, completed);
+
+            var received = await chatReceivedTcs.Task;
+            Assert.Equal(testMsg, received.Text);
+            Assert.Equal(Environment.MachineName, received.SenderName);
+
+            controller.Disconnect();
+        }
+        finally
+        {
+            agent.Stop();
+        }
+    }
 }

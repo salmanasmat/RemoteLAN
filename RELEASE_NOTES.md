@@ -1,5 +1,16 @@
 # Release Notes
 
+## [1.3.0] - 2026-09-21
+
+RemoteLAN **v1.3.0** introduces bidirectional, zero-persistence in-session text chat between Controller and Agent over the existing authenticated TCP connection, complete with typing indicators, AnyDesk/TeamViewer-style floating host widget, and strict RAM-only ephemeral lifecycle.
+
+### 💬 In-Session Ephemeral Chat (New Feature)
+- **Zero-Footprint In-Memory Architecture**: All chat messages exist exclusively in memory during the active session. No disk I/O, no temporary files, and no logs are ever produced. When the session terminates (user disconnect, socket drop, or window closure), all messages and data structures are wiped immediately (`ChatViewModel.Clear()`).
+- **Controller Chat Drawer**: Integrated collapsible right-hand slide drawer within `SessionWindow`, featuring message bubbles, auto-scroll, unread message counter badge on the toolbar button, and typing indicators.
+- **Strict Keyboard Focus Isolation**: Added explicit focus guards in `Window_PreviewKeyDown` and `Window_PreviewKeyUp` when interacting with the chat input box to ensure chat keystrokes are never forwarded to the remote host.
+- **Agent Floating Widget (`HostChatWindow`)**: Unobtrusive, topmost, chromeless overlay window positioned in the bottom-right corner of the host desktop. Starts as a compact pill, expands on click or incoming message, supports dragging, and self-destructs instantly on session disconnect.
+- **Extended Protocol Framing**: Added `ChatMessage` (`0x40`) and `ChatTypingIndicator` (`0x41`) message types with built-in message truncation and 4,096-character limit safeguards.
+
 ## [1.2.1] - 2026-09-18
 
 RemoteLAN **v1.2.1** is a reliability patch release fixing Windows sign-in lock screen OS password auto-entry, hardware keystroke scan code mapping, and multi-interface credential resolution.

@@ -71,6 +71,19 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+                    <!-- Chat Button with unread badge -->
+                    <Grid Margin="0,0,10,0" VerticalAlignment="Center">
+                        <Button x:Name="ChatBtn" Content="💬 Chat" Click="ChatBtn_Click" Padding="12,4" Focusable="False"
+                                Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1"
+                                Cursor="Hand" FontWeight="Medium"/>
+                        <Border x:Name="ChatUnreadBadge" Background="#EF4444" CornerRadius="8"
+                                MinWidth="16" Height="16" Padding="3,0"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Margin="0,-4,-4,0" Visibility="Collapsed">
+                            <TextBlock x:Name="ChatUnreadBadgeText" Text="0" FontSize="9" FontWeight="Bold"
+                                       Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
                     <Button x:Name="ToggleFullscreenBtn" Content="Fullscreen" Click="ToggleFullscreenBtn_Click" Padding="12,4" Focusable="False"
                             Background="#F1F5F9" Foreground="#1E293B" BorderBrush="#CBD5E1" BorderThickness="1" Cursor="Hand" FontWeight="Medium" Margin="0,0,10,0"/>
                     <Button x:Name="DisconnectBtn" Content="Disconnect" Click="DisconnectBtn_Click" Padding="14,4" Focusable="False"
@@ -103,7 +116,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SessionStatusText" Text="Connected • Low Latency Direct Socket Stream" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="RemoteLAN v1.2.1" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="RemoteLAN v1.3.0" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -133,5 +146,96 @@
                 </StackPanel>
             </Border>
         </Grid>
+        <!-- ─── Chat Drawer (right-side slide panel, ZIndex 490) ──────────── -->
+        <Border x:Name="ChatDrawer" Grid.RowSpan="3"
+                Width="320" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1,0,0,0"
+                Panel.ZIndex="490" Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>    <!-- Header -->
+                    <RowDefinition Height="*"/>       <!-- Message list -->
+                    <RowDefinition Height="Auto"/>    <!-- Typing indicator -->
+                    <RowDefinition Height="Auto"/>    <!-- Input row -->
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0" Background="#2563EB" Padding="12,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="💬 Chat" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="ChatDrawerSubtitle" Text="Ephemeral — cleared on disconnect"
+                                       FontSize="10" Foreground="#BFDBFE"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="✕" Width="28" Height="28"
+                                Background="Transparent" Foreground="#FFFFFF" BorderThickness="0"
+                                FontSize="14" FontWeight="Bold" Cursor="Hand" Focusable="False"
+                                Click="ChatCloseBtn_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- Message list -->
+                <ScrollViewer x:Name="ChatScrollViewer" Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Background="#F8FAFC">
+                    <StackPanel x:Name="ChatMessageListPanel" Margin="0,6"/>
+                </ScrollViewer>
+
+                <!-- Typing indicator -->
+                <TextBlock x:Name="ChatTypingIndicatorText" Grid.Row="2"
+                           Text="Remote is typing…"
+                           FontSize="10" FontStyle="Italic" Foreground="#94A3B8"
+                           Margin="12,4" Visibility="Collapsed"/>
+
+                <!-- Input row -->
+                <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="8,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Background="#F1F5F9" CornerRadius="8"
+                                BorderBrush="#CBD5E1" BorderThickness="1" Padding="8,0" Margin="0,0,6,0">
+                            <TextBox x:Name="ChatInputBox"
+                                     Background="Transparent" BorderThickness="0"
+                                     FontSize="12" Foreground="#0F172A"
+                                     VerticalAlignment="Center" Height="34"
+                                     VerticalContentAlignment="Center"
+                                     MaxLength="4096"
+                                     KeyDown="ChatInputBox_KeyDown"
+                                     TextChanged="ChatInputBox_TextChanged"/>
+                        </Border>
+                        <Button x:Name="ChatSendBtn" Grid.Column="1"
+                                Content="➔" Width="36" Height="36"
+                                Background="#2563EB" Foreground="#FFFFFF"
+                                BorderThickness="0" FontSize="14" FontWeight="Bold"
+                                Cursor="Hand" Focusable="False"
+                                Click="ChatSendBtn_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="border" Property="Background" Value="#94A3B8"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
     </Grid>
 </Window>

@@ -29,6 +29,8 @@ public sealed class AgentServer : IDisposable
     private TcpClient? _currentClient;
     private readonly object _clientLock = new();
     private int _sessionGeneration;
+    private NetworkStream? _sessionStream;
+    private readonly object _sessionStreamLock = new();
 
     public int Port => _port;
     public SettingsManager? SettingsManager => _settingsManager;
@@ -43,6 +45,9 @@ public sealed class AgentServer : IDisposable
     public event Action<double>? FpsUpdated;
     public event Action<IncomingConnectionEventArgs>? IncomingConnectionRequested;
     public event Action? IncomingConnectionDismissed;
+    public event Action<ChatMessagePayload>? ChatMessageReceived;
+    public event Action? ControllerTypingStarted;
+    public event Action? ChatSessionEnded;
 
     public PinManager PinManager => _pinManager;
 
@@ -344,6 +349,12 @@ public sealed class AgentServer : IDisposable
             SystemPowerManager.AcquireKeepAwake();
             SystemPowerManager.WakeDisplay();
 
+            // Expose session stream for outbound chat sends
+            lock (_sessionStreamLock)
+            {
+                _sessionStream = networkStream;
+            }
+
             // Associate input injector with new session generation
             int sessionId = Interlocked.Increment(ref _sessionGeneration);
             _inputInjector.ResetSession(sessionId);
@@ -374,6 +385,13 @@ public sealed class AgentServer : IDisposable
         }
         finally
         {
+            // Clear session stream — wipes the outbound-chat path and all references
+            lock (_sessionStreamLock)
+            {
+                _sessionStream = null;
+            }
+            ChatSessionEnded?.Invoke();
+
             // Reset input injector to release all pressed keys and buttons and drain queues
             _inputInjector.ResetSession(0);
 
@@ -497,6 +515,19 @@ public sealed class AgentServer : IDisposable
                         var unlockMsg = UnlockWithOsPasswordMessage.Deserialize(payload);
                         _ = Task.Run(() => DesktopManager.UnlockWithPassword(unlockMsg.Password));
                         break;
+
+                    case MessageType.ChatMessage:
+                        try
+                        {
+                            var chatMsg = ChatMessagePayload.Deserialize(payload);
+                            ChatMessageReceived?.Invoke(chatMsg);
+                        }
+                        catch { /* malformed payload — discard */ }
+                        break;
+
+                    case MessageType.ChatTypingIndicator:
+                        ControllerTypingStarted?.Invoke();
+                        break;
                 }
             }
             catch (OperationCanceledException)
@@ -514,6 +545,49 @@ public sealed class AgentServer : IDisposable
                 Debug.WriteLine($"[AgentServer] Input processing glitch: {ex.Message}");
             }
         }
+    }
+
+    /// <summary>Sends a chat message to the connected Controller over the active session stream.</summary>
+    public async ValueTask SendChatMessageAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        if (text.Length > ChatMessagePayload.MaxTextLength)
+            text = text[..ChatMessagePayload.MaxTextLength];
+
+        NetworkStream? stream;
+        lock (_sessionStreamLock)
+        {
+            stream = _sessionStream;
+        }
+        if (stream == null) return;
+
+        try
+        {
+            var msg = new ChatMessagePayload
+            {
+                SenderName = Environment.MachineName,
+                TimestampUtcMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Text = text
+            };
+            await _writer.WriteFrameAsync(stream, MessageType.ChatMessage, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
+    /// <summary>Sends a zero-payload typing indicator to the connected Controller.</summary>
+    public async ValueTask SendTypingIndicatorAsync()
+    {
+        NetworkStream? stream;
+        lock (_sessionStreamLock)
+        {
+            stream = _sessionStream;
+        }
+        if (stream == null) return;
+        try
+        {
+            await _writer.WriteFrameAsync(stream, MessageType.ChatTypingIndicator, Array.Empty<byte>()).ConfigureAwait(false);
+        }
+        catch { }
     }
 
     public void Dispose()

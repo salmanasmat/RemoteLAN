@@ -244,3 +244,66 @@ public class ProtocolTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }
+
+public class ChatMessageProtocolTests
+{
+    [Fact]
+    public void ChatMessage_RoundTrip_Serialization()
+    {
+        var original = new RemoteLAN.Protocol.Messages.ChatMessagePayload
+        {
+            SenderName = "DESKTOP-TEST",
+            TimestampUtcMs = 1_000_000_000L,
+            Text = "Hello from the Controller!"
+        };
+
+        byte[] bytes = original.Serialize();
+        var deserialized = RemoteLAN.Protocol.Messages.ChatMessagePayload.Deserialize(bytes);
+
+        Assert.Equal(original.SenderName, deserialized.SenderName);
+        Assert.Equal(original.TimestampUtcMs, deserialized.TimestampUtcMs);
+        Assert.Equal(original.Text, deserialized.Text);
+    }
+
+    [Fact]
+    public void ChatMessage_EmptyText_SerializesAndDeserializesCorrectly()
+    {
+        var original = new RemoteLAN.Protocol.Messages.ChatMessagePayload
+        {
+            SenderName = "AGENT-PC",
+            TimestampUtcMs = 9_999_999L,
+            Text = string.Empty
+        };
+
+        byte[] bytes = original.Serialize();
+        var deserialized = RemoteLAN.Protocol.Messages.ChatMessagePayload.Deserialize(bytes);
+
+        Assert.Equal(string.Empty, deserialized.Text);
+        Assert.Equal("AGENT-PC", deserialized.SenderName);
+    }
+
+    [Fact]
+    public void ChatMessage_MaxLength_Enforced_On_Deserialize()
+    {
+        // Build a payload that exceeds MaxTextLength to verify the guard fires
+        string oversized = new('A', RemoteLAN.Protocol.Messages.ChatMessagePayload.MaxTextLength + 1);
+
+        var msg = new RemoteLAN.Protocol.Messages.ChatMessagePayload
+        {
+            SenderName = "Attacker",
+            TimestampUtcMs = 0L,
+            Text = oversized
+        };
+
+        byte[] bytes = msg.Serialize();
+        Assert.Throws<System.IO.InvalidDataException>(() =>
+            RemoteLAN.Protocol.Messages.ChatMessagePayload.Deserialize(bytes));
+    }
+
+    [Fact]
+    public void ChatMessage_MessageType_Values_Are_Correct()
+    {
+        Assert.Equal((byte)0x40, (byte)RemoteLAN.Protocol.Messages.MessageType.ChatMessage);
+        Assert.Equal((byte)0x41, (byte)RemoteLAN.Protocol.Messages.MessageType.ChatTypingIndicator);
+    }
+}

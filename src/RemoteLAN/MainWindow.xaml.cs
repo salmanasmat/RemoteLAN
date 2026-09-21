@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private IncomingConnectionEventArgs? _currentIncomingRequest;
     private ControllerClient? _pendingApprovalClient;
     private CancellationTokenSource? _pendingApprovalCts;
+    private Views.HostChatWindow? _hostChatWindow;
 
     private bool _hasActiveNetwork = true;
 
@@ -429,6 +430,15 @@ public partial class MainWindow : Window
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
             SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
+
+            // Launch the floating host chat widget
+            try
+            {
+                _hostChatWindow?.Close();
+            }
+            catch { }
+            _hostChatWindow = new Views.HostChatWindow(_server, endpoint);
+            _hostChatWindow.Show();
         });
     }
 
@@ -438,6 +448,9 @@ public partial class MainWindow : Window
         {
             ActiveClientCard.Visibility = Visibility.Collapsed;
             SetStatus("Ready to connect", Color.FromRgb(16, 185, 129)); // Green
+            // HostChatWindow closes itself via the ChatSessionEnded event;
+            // just clear the local reference so GC can reclaim it.
+            _hostChatWindow = null;
         });
     }
 

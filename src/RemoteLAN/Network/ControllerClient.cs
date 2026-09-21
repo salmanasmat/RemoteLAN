@@ -28,6 +28,8 @@ public sealed class ControllerClient : IDisposable
     public event Action<ControllerState, string>? StateChanged;
     public event Action<byte[]>? FrameReceived;
     public event Action<int, int>? ScreenResolutionReceived;
+    public event Action<ChatMessagePayload>? ChatMessageReceived;
+    public event Action? RemoteTypingStarted;
 
     public void UpdateRemoteResolution(int width, int height)
     {
@@ -133,6 +135,19 @@ public sealed class ControllerClient : IDisposable
                 if (type == MessageType.ScreenFrame)
                 {
                     FrameReceived?.Invoke(payload);
+                }
+                else if (type == MessageType.ChatMessage)
+                {
+                    try
+                    {
+                        var msg = ChatMessagePayload.Deserialize(payload);
+                        ChatMessageReceived?.Invoke(msg);
+                    }
+                    catch { /* malformed payload — discard silently */ }
+                }
+                else if (type == MessageType.ChatTypingIndicator)
+                {
+                    RemoteTypingStarted?.Invoke();
                 }
             }
         }
@@ -246,6 +261,40 @@ public sealed class ControllerClient : IDisposable
         {
             var msg = new UnlockWithOsPasswordMessage { Password = password };
             await _writer.WriteFrameAsync(_networkStream, MessageType.UnlockWithOsPassword, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
+    /// <summary>Sends a chat message to the Agent over the active session stream.</summary>
+    public async ValueTask SendChatMessageAsync(string text)
+    {
+        if (State != ControllerState.Connected || _networkStream == null) return;
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        // Truncate defensively — UI enforces this too, but belt-and-suspenders.
+        if (text.Length > ChatMessagePayload.MaxTextLength)
+            text = text[..ChatMessagePayload.MaxTextLength];
+
+        try
+        {
+            var msg = new ChatMessagePayload
+            {
+                SenderName = Environment.MachineName,
+                TimestampUtcMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Text = text
+            };
+            await _writer.WriteFrameAsync(_networkStream, MessageType.ChatMessage, msg.Serialize()).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
+    /// <summary>Sends a zero-payload typing indicator frame to the Agent.</summary>
+    public async ValueTask SendTypingIndicatorAsync()
+    {
+        if (State != ControllerState.Connected || _networkStream == null) return;
+        try
+        {
+            await _writer.WriteFrameAsync(_networkStream, MessageType.ChatTypingIndicator, Array.Empty<byte>()).ConfigureAwait(false);
         }
         catch { }
     }

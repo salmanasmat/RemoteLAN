@@ -2,10 +2,14 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using RemoteLAN.Chat;
 using RemoteLAN.Input;
 using RemoteLAN.Network;
 using RemoteLAN.Rendering;
 using RemoteLAN.Protocol.Messages;
+using Color = System.Windows.Media.Color;
 using Point = System.Windows.Point;
 
 namespace RemoteLAN.Views;
@@ -24,6 +28,8 @@ public partial class SessionWindow : Window
     private readonly string? _machineId;
     private readonly string _remoteDisplayName;
     private bool _hasAutoUnlocked;
+    private readonly ChatViewModel _chatViewModel = new();
+    private readonly DispatcherTimer _typingHideTimer;
 
     public SessionWindow(ControllerClient client, string remoteDisplayName, string endpoint, Security.SettingsManager? settingsManager = null, string? targetIp = null, string? machineId = null)
     {
@@ -49,6 +55,18 @@ public partial class SessionWindow : Window
 
         _client.FrameReceived += Client_FrameReceived;
         _client.StateChanged += Client_StateChanged;
+        _client.ChatMessageReceived += OnRemoteChatMessage;
+        _client.RemoteTypingStarted += OnRemoteTyping;
+
+        // Typing indicator auto-hide
+        _typingHideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _typingHideTimer.Tick += (_, _) =>
+        {
+            _typingHideTimer.Stop();
+            ChatTypingIndicatorText.Visibility = Visibility.Collapsed;
+        };
+
+        _chatViewModel.UnreadChanged += UpdateChatBadge;
 
         ResolutionTextBlock.Text = $"{_client.RemoteScreenWidth}x{_client.RemoteScreenHeight}";
         ViewportContainer.Focus();
@@ -215,8 +233,11 @@ public partial class SessionWindow : Window
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // If OS password prompt modal is open, let the user type locally into the password box
+        // If OS password prompt modal is open, let the user type locally
         if (OsPasswordPromptOverlay.Visibility == Visibility.Visible) return;
+
+        // Critical: if the chat input box has focus, do NOT forward keys to the remote PC
+        if (ChatDrawer.IsKeyboardFocusWithin) return;
 
         if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
@@ -237,6 +258,7 @@ public partial class SessionWindow : Window
     private async void Window_PreviewKeyUp(object sender, KeyEventArgs e)
     {
         if (OsPasswordPromptOverlay.Visibility == Visibility.Visible) return;
+        if (ChatDrawer.IsKeyboardFocusWithin) return;
 
         if (!IsRemoteInputEnabled || _client.State != ControllerState.Connected) return;
 
@@ -643,6 +665,177 @@ public partial class SessionWindow : Window
         };
     }
 
+    // ─── Chat Handlers ───────────────────────────────────────────────────────
+
+    private void ChatBtn_Click(object sender, RoutedEventArgs e)
+    {
+        bool nowOpen = ChatDrawer.Visibility != Visibility.Visible;
+        ChatDrawer.Visibility = nowOpen ? Visibility.Visible : Visibility.Collapsed;
+
+        if (nowOpen)
+        {
+            _chatViewModel.MarkRead();
+            ChatInputBox.Focus();
+            ChatScrollViewer.ScrollToBottom();
+        }
+        else
+        {
+            ViewportContainer.Focus();
+        }
+    }
+
+    private void ChatCloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ChatDrawer.Visibility = Visibility.Collapsed;
+        ViewportContainer.Focus();
+    }
+
+    private void OnRemoteChatMessage(ChatMessagePayload payload)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _chatViewModel.AddMessage(payload, isLocal: false);
+            AppendChatBubble(payload.Text, isLocal: false, senderName: payload.SenderName);
+
+            // Auto-scroll if drawer is open
+            if (ChatDrawer.IsVisible)
+            {
+                _chatViewModel.MarkRead();
+                ChatScrollViewer.ScrollToBottom();
+            }
+        });
+    }
+
+    private void OnRemoteTyping()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (ChatDrawer.IsVisible)
+            {
+                ChatTypingIndicatorText.Visibility = Visibility.Visible;
+                _typingHideTimer.Stop();
+                _typingHideTimer.Start();
+            }
+        });
+    }
+
+    private void UpdateChatBadge()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            bool show = _chatViewModel.HasUnread && !ChatDrawer.IsVisible;
+            ChatUnreadBadge.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (show)
+            {
+                int count = _chatViewModel.Messages.Count;
+                ChatUnreadBadgeText.Text = count > 99 ? "99+" : count.ToString();
+            }
+        });
+    }
+
+    private async void ChatSendBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await SendChatMessageAsync();
+    }
+
+    private async void ChatInputBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
+        {
+            e.Handled = true;
+            await SendChatMessageAsync();
+        }
+    }
+
+    private async void ChatInputBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(ChatInputBox.Text))
+        {
+            await _client.SendTypingIndicatorAsync();
+        }
+    }
+
+    private async Task SendChatMessageAsync()
+    {
+        string text = ChatInputBox.Text.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        ChatInputBox.Clear();
+        ChatTypingIndicatorText.Visibility = Visibility.Collapsed;
+
+        // Show locally immediately
+        var payload = new ChatMessagePayload
+        {
+            SenderName = Environment.MachineName,
+            TimestampUtcMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Text = text
+        };
+        _chatViewModel.AddMessage(payload, isLocal: true);
+        AppendChatBubble(text, isLocal: true);
+        ChatScrollViewer.ScrollToBottom();
+
+        // Send over the wire
+        await _client.SendChatMessageAsync(text);
+    }
+
+    private void AppendChatBubble(string text, bool isLocal, string? senderName = null)
+    {
+        var timeText = new TextBlock
+        {
+            Text = DateTime.Now.ToString("HH:mm"),
+            FontSize = 9,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+            HorizontalAlignment = isLocal ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            Margin = new Thickness(isLocal ? 0 : 6, 2, isLocal ? 6 : 0, 0)
+        };
+
+        var textBlock = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = isLocal
+                ? new SolidColorBrush(Colors.White)
+                : new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A))
+        };
+
+        StackPanel bubbleStack;
+        if (!isLocal && !string.IsNullOrEmpty(senderName))
+        {
+            var nameLabel = new TextBlock
+            {
+                Text = senderName,
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+            bubbleStack = new StackPanel { Children = { nameLabel, textBlock } };
+        }
+        else
+        {
+            bubbleStack = new StackPanel { Children = { textBlock } };
+        }
+
+        var bubble = new Border
+        {
+            Background = isLocal
+                ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB))
+                : new SolidColorBrush(Color.FromRgb(0xF1, 0xF5, 0xF9)),
+            CornerRadius = isLocal ? new CornerRadius(12, 12, 2, 12) : new CornerRadius(12, 12, 12, 2),
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = isLocal ? new Thickness(36, 4, 4, 0) : new Thickness(4, 4, 36, 0),
+            HorizontalAlignment = isLocal ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            MaxWidth = 260,
+            Child = bubbleStack
+        };
+
+        ChatMessageListPanel.Children.Add(timeText);
+        ChatMessageListPanel.Children.Add(bubble);
+    }
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (!_isUserClosing && MenuLockOnDisconnectToggle.IsChecked && _client.State == ControllerState.Connected)
@@ -660,6 +853,14 @@ public partial class SessionWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isUserClosing = true;
+        _typingHideTimer.Stop();
+
+        // Unsubscribe chat events first to prevent any late-arriving messages
+        // from re-entering Dispatcher after the window is closed.
+        _client.ChatMessageReceived -= OnRemoteChatMessage;
+        _client.RemoteTypingStarted -= OnRemoteTyping;
+        _chatViewModel.Clear();
+
         _client.StateChanged -= Client_StateChanged;
         _client.FrameReceived -= Client_FrameReceived;
         _ = ReleaseActiveInputsAsync();
