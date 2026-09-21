@@ -117,7 +117,7 @@ The compiled installer is output to:
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
 - **Post-Install Launch Option**: Includes an optional checkbox on the final installer page to launch RemoteLAN immediately into the foreground (unchecked by default to preserve silent background startup).
-- **Automatic Background Startup**: Configures Windows Run key (`--background`) so the host is immediately reachable on boot without displaying the main window.
+- **Automatic Background Startup**: Configures an elevated Windows Scheduled Task (`RemoteLAN_Autostart` with `/RL HIGHEST` at logon) synchronized with the Windows Run registry key (`--background`), allowing silent, unattended startup on boot without UAC prompts even when running on battery.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
 - **System Tray Integration**: Closing the window hides to the notification tray; right-click tray icon to open or exit.
 - **Connection Alert**: Main window automatically reveals itself upon incoming remote connection.

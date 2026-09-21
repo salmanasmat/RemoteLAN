@@ -100,7 +100,8 @@ begin
     // If autostart task was chosen, create elevated Task Scheduler job for lock screen access
     if WizardIsTaskSelected('autostart') then
     begin
-      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR """' + ExpandConstant('{app}\{#MyAppExeName}') + '"" --background" /SC ONLOGON /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR ' + Chr(34) + '\"' + ExpandConstant('{app}\{#MyAppExeName}') + '\" --background' + Chr(34) + ' /SC ONLOGON /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$t = Get-ScheduledTask -TaskName ''RemoteLAN_Autostart'' -ErrorAction SilentlyContinue; if ($t) { $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = ''PT0S''; Set-ScheduledTask $t }"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
   end;
 end;

@@ -109,11 +109,22 @@ public partial class App : Application
 
         // Check if application should start hidden in the background
         var settings = new Security.SettingsManager();
-        bool startInBackground = settings.StartMinimizedToTray || e.Args.Any(arg =>
+        bool isBackgroundLaunch = e.Args.Any(arg =>
             arg.Equals("--background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("/background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("-background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+
+        if (isBackgroundLaunch && !Security.StartupHelper.IsRunAtStartupEnabled())
+        {
+            Shutdown();
+            return;
+        }
+
+        // Auto-heal scheduled task if startup is enabled but scheduled task is missing
+        Security.StartupHelper.EnsureStartupSynchronized();
+
+        bool startInBackground = settings.StartMinimizedToTray || isBackgroundLaunch;
 
         _mainWindow = new MainWindow();
 
