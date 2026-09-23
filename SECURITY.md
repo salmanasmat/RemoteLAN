@@ -8,7 +8,7 @@ We take the security of **RemoteLAN** seriously. This document outlines our secu
 
 | Version | Supported | Notes |
 | :--- | :---: | :--- |
-| **1.3.x** | 🟢 Yes | Active release branch (Current: v1.3.0) |
+| **1.3.x** | 🟢 Yes | Active release branch (Current: v1.3.2) |
 | **1.2.x** | 🔴 No | Superseded by v1.3.x |
 | **1.1.x** | 🔴 No | Superseded by v1.2.x |
 | **1.0.x** | 🔴 No | Superseded by v1.1.x |
@@ -22,7 +22,7 @@ If you discover a security vulnerability in RemoteLAN, please **do not open a pu
 Please include:
 - A description of the issue and potential impact.
 - Step-by-step reproduction steps or proof of concept.
-- Affected versions (e.g., v1.2.1).
+- Affected versions (e.g., v1.3.2).
 
 We will acknowledge receipt of your report within 48 hours, investigate the issue promptly, and release a patch in accordance with semantic versioning.
 
@@ -30,8 +30,8 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 ## Security Audit Report (OWASP Standards)
 
-- **Audit Date**: March 2026 (Updated for v1.2.1 release)
-- **Audited Target**: RemoteLAN v1.2.1 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
+- **Audit Date**: September 2026 (Updated for v1.3.2 release)
+- **Audited Target**: RemoteLAN v1.3.2 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
 - **Scope**: Full repository security sweep (Secrets, Injection, Authentication/Authorization, Privilege Management, Supply Chain).
 
 ### Executive Summary
@@ -39,12 +39,12 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 | Category | Status | Notes |
 | :--- | :---: | :--- |
 | **Secrets & Keys** | 🟢 PASSED | Zero hardcoded secrets, private keys, or API tokens in codebase. |
-| **Credential Storage** | 🟡 WARNING | User-scoped `%LocalAppData%` JSON keyed by Machine GUIDs; recommend DPAPI encryption at rest. |
-| **Injection Vulnerabilities** | 🟢 PASSED | Safe typed enum protocol routing; hardened `ProcessStartInfo.ArgumentList` execution. |
-| **Authentication & AuthZ** | 🟢 PASSED | CSPRNG PIN generation, constant-time validation (`FixedTimeEquals`), IP lockout protection. |
+| **Credential Storage** | 🟡 WARNING | JSON configuration stored at `%ProgramData%\RemoteLAN\settings.json`; recommend DPAPI encryption at rest. |
+| **Injection Vulnerabilities** | 🟢 PASSED | Safe typed enum protocol routing; hardened structured `ProcessStartInfo.ArgumentList` execution in `SystemPowerManager` and `StartupHelper`. |
+| **Authentication & AuthZ** | 🟢 PASSED | CSPRNG PIN generation, constant-time validation (`FixedTimeEquals`), IP lockout rate limiting. |
 | **Privilege Impersonation** | 🟢 PASSED | Strict RAII token impersonation (`ImpersonationScope`) with guaranteed `RevertToSelf()`. |
 | **Network & DoS Defense** | 🟢 PASSED | Enforced framing boundaries (`MaxPayloadSize` 20MB limit) preventing buffer exhaustion. |
-| **Dependencies & Supply Chain** | 🟢 PASSED | Minimal verified dependency tree on .NET 8; zero vulnerable packages. |
+| **Dependencies & Supply Chain** | 🟢 PASSED | Verified with `dotnet list package --vulnerable`; zero vulnerable packages across entire solution. |
 
 ---
 
@@ -52,13 +52,15 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 #### 1. Secrets Detection (OWASP A07: Identification and Authentication Failures)
 * **Scan Result**: 🟢 **PASSED**
-* Automated regex and static analysis detected **zero** hardcoded secrets, passwords, credentials, or API keys in application sources and test suites.
+* Automated regex and static analysis detected **zero** hardcoded secrets, passwords, credentials, or API keys in application sources, configuration files, and test suites.
 * All session codes and security tokens are generated dynamically at runtime using cryptographically secure random number generators (`System.Security.Cryptography.RandomNumberGenerator`).
+* Sensitive file patterns (`.env`, `.env.*`, `settings.json`, `agent.id`, `*.id`) are properly enforced in `.gitignore`.
 
 #### 2. Injection Prevention (OWASP A03: Injection)
 * **Scan Result**: 🟢 **PASSED**
-* **Command Injection**: `SystemPowerManager` executes Windows system commands (`shutdown.exe`) for remote Lock/Sleep/Restart/Shutdown.
-  - *Hardening Applied*: Replaced string-interpolated arguments with structured `ProcessStartInfo.ArgumentList` (`/r`, `/s`, `/t`, `/f`, `/c`), preventing argument injection or delimiter breakout.
+* **Command Injection**:
+  - `SystemPowerManager` executes Windows system commands (`shutdown.exe`) for remote Lock/Sleep/Restart/Shutdown using structured `ProcessStartInfo.ArgumentList` (`/r`, `/s`, `/t`, `/f`, `/c`), preventing argument injection or delimiter breakout.
+  - `StartupHelper` manages Windows Task Scheduler and PowerShell configuration: hardened all process executions (`schtasks.exe`, `powershell.exe`) with structured `ProcessStartInfo.ArgumentList` to guarantee argument boundary safety without shell concatenation vulnerabilities.
   - *Network Protocol Boundary*: Incoming wire commands (`PowerActionMessage`) carry only a strongly typed 1-byte enum (`PowerActionType`), preventing arbitrary command delivery over the network.
 * **SQL Injection**: Not applicable (no SQL database used; settings are managed via JSON files).
 * **Cross-Site Scripting (XSS)**: Not applicable (native WPF desktop client rendering Direct3D/WPF visuals, no web views or `innerHTML` evaluation).
@@ -67,7 +69,7 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 * **Scan Result**: 🟢 **PASSED**
 * **Cryptographic Randomness**: Temporary session PINs are generated using `RandomNumberGenerator.GetInt32` across an alphanumeric alphabet (`23456789ABCDEFGHJKLMNPQRSTUVWXYZ`), avoiding ambiguous characters (0, 1, I, O).
 * **Timing Attack Prevention**:
-  - *Hardening Applied*: Candidate PINs and unattended passwords in `PinManager.ValidatePin` are verified using `CryptographicOperations.FixedTimeEquals` to prevent side-channel timing analysis.
+  - Candidate PINs and unattended passwords in `PinManager.ValidatePin` are verified using `CryptographicOperations.FixedTimeEquals` to prevent side-channel timing analysis.
 * **Brute-Force & Rate Limiting**:
   - `AgentServer` and `SettingsManager` implement automatic IP lockout: after 5 consecutive failed authentication attempts (configurable), the offending client IP is temporarily locked out for 10 minutes (configurable).
 * **Session Lifecycle**:
@@ -91,20 +93,20 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 #### 6. Credential Storage at Rest
 * **Scan Result**: 🟡 **WARNING (Future Hardening Recommended)**
-* Configuration and credentials (unattended access password and saved remote device passwords) are stored in JSON at `%LocalAppData%\RemoteLAN\settings.json`, partitioned and mapped by persistent Machine GUIDs.
-* While access is restricted by Windows operating system NTFS file permissions to the current user and Administrators:
-  - *Recommendation*: Encrypt stored passwords at rest using Windows Data Protection API (DPAPI: `ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) to protect credentials against unauthorized tools running under the same user context.
+* Configuration and credentials (unattended access password and saved remote device passwords) are stored in JSON at `%ProgramData%\RemoteLAN\settings.json`, partitioned and mapped by persistent Machine GUIDs.
+* While the directory location allows seamless background operation across both pre-logon (SYSTEM) and user interactive sessions:
+  - *Recommendation*: Encrypt stored passwords at rest using Windows Data Protection API (DPAPI: `ProtectedData.Protect`) to safeguard credentials against unauthorized local tools running on the workstation.
 
 #### 7. Dependency Analysis (OWASP A06: Vulnerable and Outdated Components)
 * **Scan Result**: 🟢 **PASSED**
-* Evaluated third-party packages:
+* Evaluated third-party packages via `dotnet list package --vulnerable`:
   - `System.Drawing.Common` (10.0.12)
   - `Vortice.Direct3D11` (3.8.3)
   - `Vortice.DXGI` (3.8.3)
-* Dependencies are up to date, minimal, and run against .NET 8 LTS.
+* Dependencies have **zero reported vulnerabilities** and run against .NET 8 LTS.
 
 ---
 
 ### Verification
-- Full test suite passed (89 unit, integration, and regression tests).
+- Full test suite passed (111 unit, integration, and regression tests).
 - All security hardening modifications tested and verified.

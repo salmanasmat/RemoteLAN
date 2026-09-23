@@ -100,7 +100,13 @@ public sealed class GdiScreenCapturer : IScreenCapturer
     {
         int curW = _width > 0 ? _width : GetSystemMetrics(SM_CXSCREEN);
         int curH = _height > 0 ? _height : GetSystemMetrics(SM_CYSCREEN);
-        string? reason = !DesktopManager.IsAdministrator
+        if (curW <= 0 || curH <= 0)
+        {
+            curW = 1920;
+            curH = 1080;
+        }
+
+        string? reason = (!DesktopManager.IsAdministrator && !DesktopManager.IsSystem)
             ? "Run RemoteLAN as Administrator to view and unlock the Windows sign-in screen."
             : null;
 

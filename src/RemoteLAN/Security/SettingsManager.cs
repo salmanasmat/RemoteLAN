@@ -55,8 +55,38 @@ public sealed class SettingsManager
 
     public static string GetDefaultFilePath()
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteLAN");
-        return Path.Combine(dir, "settings.json");
+        string commonDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RemoteLAN");
+        string commonPath = Path.Combine(commonDir, "settings.json");
+
+        if (File.Exists(commonPath))
+        {
+            return commonPath;
+        }
+
+        // Check if legacy user-specific file exists to migrate it
+        string userDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteLAN");
+        string userPath = Path.Combine(userDir, "settings.json");
+
+        if (File.Exists(userPath))
+        {
+            try
+            {
+                if (!Directory.Exists(commonDir))
+                {
+                    Directory.CreateDirectory(commonDir);
+                }
+                File.Copy(userPath, commonPath, true);
+                return commonPath;
+            }
+            catch
+            {
+                // If migration fails due to permissions, fallback to userPath
+                return userPath;
+            }
+        }
+
+        // Default to common path for machine-wide access (accessible pre-logon by SYSTEM)
+        return commonPath;
     }
 
     public string? GetHostPin()
@@ -601,6 +631,22 @@ public sealed class SettingsManager
 
             string json = JsonSerializer.Serialize(_data, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_filePath, json);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // If common path cannot be written due to standard user permissions, fallback to LocalApplicationData
+            try
+            {
+                string fallbackDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteLAN");
+                if (!Directory.Exists(fallbackDir))
+                {
+                    Directory.CreateDirectory(fallbackDir);
+                }
+                string fallbackPath = Path.Combine(fallbackDir, "settings.json");
+                string json = JsonSerializer.Serialize(_data, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(fallbackPath, json);
+            }
+            catch { }
         }
         catch
         {

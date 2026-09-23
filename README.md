@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -26,6 +26,9 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Left Vertical Sidebar**: Displays This PC's identity, IP address, and alphanumeric session access code with one-click copy, regeneration, and custom code assignment, with a quick-access Settings launcher.
   - **Top Horizontal Header**: Streamlined remote address input with instant reachability validation before requesting authentication.
   - **Interactive Device Grid**: Discovered LAN machines shown as square cards with machine name, preferred IP, active connection badge (Ethernet / Wi-Fi), and online badge — click to connect.
+- **Pre-Logon & Headless Remote Connection After Restart**: Seamless remote access to headless and locked machines immediately after reboot without requiring prior local Windows logon. Registers an elevated system startup task (`RemoteLAN_Autostart`) triggering at boot (`/SC ONSTART`) under `NT AUTHORITY\SYSTEM` with dual boot and logon triggers. A lightweight Session 0 supervisor detects active interactive sessions even on headless PCs without display monitors, elevates privileges (`SeAssignPrimaryTokenPrivilege`, `SeIncreaseQuotaPrivilege`, `SeTcbPrivilege`), spawns into the console session via native `CreateProcessAsUserW` with environment block creation, binds discovery and socket listeners, captures the sign-in screen, and accepts unattended connections.
+- **Centralized Machine-Wide Configuration Storage**: Settings (`settings.json`) and Machine ID (`agent.id`) persist centrally in `C:\ProgramData\RemoteLAN` with automatic migration from user AppData, ensuring identical host credentials and unattended passwords before and after user logon.
+- **Diagnostic File Logging**: Thread-safe persistent file logger in `C:\ProgramData\RemoteLAN\service.log` tracking boot events, supervisor transitions, child process spawning, and server lifecycle across system restarts.
 - **Fast Screen Streaming & Real-Time Lock Screen Control**: High-performance DXGI Desktop Duplication engine with automatic GDI fallback and dynamic desktop switching (`DesktopManager`). Gracefully handles session locks, UAC prompts, and lock screens across session boundaries.
 - **Windows OS Password Save & Automated Sign-In Screen Unlock**: Save remote Windows user passwords per computer. Credentials resolve across stable Machine GUIDs, hostnames, and IP addresses, surviving DHCP changes and multi-NIC adapter transitions. Lock screen unlock employs native Secure Attention Sequence (`SendSAS`), CapsLock normalization, and hardware scan code synthesis to reliably wake and unlock the Windows logon screen without keystroke drops.
 - **Persistent Device History & Live Status Indicators**: Discovered LAN machines remain saved in device history even when powered down or disconnected. Cards feature real-time status indicators (vibrant green `#22C55E` when online, slate gray `#94A3B8` with card dimming and last-seen timestamp when offline). A 3-dots kebab menu allows configuring OS passwords, forgetting saved credentials, and removing entries from history.
@@ -42,8 +45,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and live status countdown.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.0`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.2, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.2`).
 
 ---
 
@@ -56,7 +59,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (105 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (110 tests)
 ```
 
 ### Network Protocols
@@ -118,10 +121,10 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.3.0.exe`
+`dist/RemoteLAN_Setup_v1.3.2.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
-- **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%LocalAppData%\RemoteLAN`.
+- **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%ProgramData%\RemoteLAN`.
 - **Post-Install Launch Option**: Includes a checkbox on the final installer page to launch RemoteLAN immediately into the foreground (checked by default).
 - **Automatic Background Startup**: Configures an elevated Windows Scheduled Task (`RemoteLAN_Autostart` with `/RL HIGHEST` at logon) synchronized with the Windows Run registry key (`--background`), allowing silent, unattended startup on boot without UAC prompts even when running on battery.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.

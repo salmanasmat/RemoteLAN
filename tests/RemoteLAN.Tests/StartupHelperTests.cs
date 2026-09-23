@@ -209,4 +209,49 @@ public class StartupHelperTests
         Assert.NotEmpty(wifiEndpoint.IconData);
         Assert.Equal("#16A34A", wifiEndpoint.IconBrush);
     }
+
+    [Fact]
+    public void DiagnosticLogger_WritesLogEntries_WithoutThrowing()
+    {
+        string tempLog = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"remotelan_test_log_{Guid.NewGuid():N}.log");
+        try
+        {
+            DiagnosticLogger.LogFilePath = tempLog;
+            DiagnosticLogger.Log("Test log entry 1");
+            DiagnosticLogger.LogException("Test context", new InvalidOperationException("Test exception message"));
+
+            Assert.True(System.IO.File.Exists(tempLog));
+            string content = System.IO.File.ReadAllText(tempLog);
+            Assert.Contains("Test log entry 1", content);
+            Assert.Contains("Test exception message", content);
+        }
+        finally
+        {
+            try { System.IO.File.Delete(tempLog); } catch { }
+            DiagnosticLogger.LogFilePath = null!;
+        }
+    }
+
+    [Fact]
+    public void GetTargetConsoleSessionId_RespectsOverride_AndResolvesValidSession()
+    {
+        try
+        {
+            // Case 1: Active console session is valid (e.g. session 2)
+            DesktopManager.ActiveConsoleSessionIdOverride = () => 2;
+            uint targetSession = DesktopManager.GetTargetConsoleSessionId();
+            Assert.Equal(2u, targetSession);
+
+            // Case 2: Headless PC scenario (WTSGetActiveConsoleSessionId returns 0xFFFFFFFF)
+            DesktopManager.ActiveConsoleSessionIdOverride = () => 0xFFFFFFFF;
+            uint headlessSession = DesktopManager.GetTargetConsoleSessionId();
+            // Must return a valid session (> 0) and NEVER 0xFFFFFFFF
+            Assert.True(headlessSession > 0 && headlessSession != 0xFFFFFFFF);
+        }
+        finally
+        {
+            DesktopManager.ActiveConsoleSessionIdOverride = null;
+        }
+    }
 }
+

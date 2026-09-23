@@ -87,6 +87,9 @@ public static class DesktopManager
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool RevertToSelf();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WTSGetActiveConsoleSessionId();
+
     [DllImport("sas.dll", SetLastError = true)]
     private static extern void SendSAS(bool asUser);
 
@@ -101,6 +104,37 @@ public static class DesktopManager
         string? lpCurrentDirectory,
         ref STARTUPINFO lpStartupInfo,
         out PROCESS_INFORMATION lpProcessInformation);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CreateProcessAsUserW(
+        IntPtr hToken,
+        string? lpApplicationName,
+        string? lpCommandLine,
+        IntPtr lpProcessAttributes,
+        IntPtr lpThreadAttributes,
+        bool bInheritHandles,
+        uint dwCreationFlags,
+        IntPtr lpEnvironment,
+        string? lpCurrentDirectory,
+        ref STARTUPINFO lpStartupInfo,
+        out PROCESS_INFORMATION lpProcessInformation);
+
+    [DllImport("userenv.dll", SetLastError = true)]
+    private static extern bool CreateEnvironmentBlock(out IntPtr lpEnvironment, IntPtr hToken, bool bInherit);
+
+    [DllImport("userenv.dll", SetLastError = true)]
+    private static extern bool DestroyEnvironmentBlock(IntPtr lpEnvironment);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool SetTokenInformation(
+        IntPtr TokenHandle,
+        int TokenInformationClass,
+        ref uint TokenInformation,
+        uint TokenInformationLength);
+
+    private const int TokenSessionId = 12;
+    private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+    private const uint TOKEN_ASSIGN_PRIMARY = 0x0001;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct STARTUPINFO
@@ -279,6 +313,348 @@ public static class DesktopManager
             }
         }
         return false;
+    }
+
+    internal static Func<uint>? ActiveConsoleSessionIdOverride { get; set; }
+
+    public static uint GetActiveConsoleSessionId()
+    {
+        if (ActiveConsoleSessionIdOverride != null)
+        {
+            return ActiveConsoleSessionIdOverride();
+        }
+
+        try
+        {
+            return WTSGetActiveConsoleSessionId();
+        }
+        catch
+        {
+            return 0xFFFFFFFF;
+        }
+    }
+
+    /// <summary>
+    /// Gets the target console or interactive logon session ID.
+    /// On headless machines where no physical monitor is attached, WTSGetActiveConsoleSessionId()
+    /// frequently returns 0xFFFFFFFF or 0. This method discovers active winlogon processes
+    /// to determine the real interactive session.
+    /// </summary>
+    public static uint GetTargetConsoleSessionId()
+    {
+        uint consoleSessionId = GetActiveConsoleSessionId();
+        if (consoleSessionId != 0xFFFFFFFF && consoleSessionId != 0)
+        {
+            return consoleSessionId;
+        }
+
+        try
+        {
+            var winlogonProcs = Process.GetProcessesByName("winlogon");
+            foreach (var p in winlogonProcs)
+            {
+                if (p.SessionId > 0)
+                {
+                    return (uint)p.SessionId;
+                }
+            }
+        }
+        catch { }
+
+        return consoleSessionId != 0xFFFFFFFF ? consoleSessionId : 1;
+    }
+
+    public static bool LaunchInConsoleSession(string[] args, string? overrideConfigPath)
+    {
+        EnsureSeDebugPrivilege();
+
+        uint targetSessionId = GetTargetConsoleSessionId();
+        DiagnosticLogger.Log($"[LaunchInConsoleSession] Target console session ID: {targetSessionId}");
+
+        if (targetSessionId == 0xFFFFFFFF)
+        {
+            DiagnosticLogger.Log("[LaunchInConsoleSession] Unable to identify any target session.");
+            return false;
+        }
+
+        IntPtr hPrimaryToken = IntPtr.Zero;
+
+        // Strategy 1: Acquire and duplicate the primary token from winlogon.exe in target session
+        var winlogonProcs = Process.GetProcessesByName("winlogon");
+        foreach (var wp in winlogonProcs)
+        {
+            try
+            {
+                if (wp.SessionId != (int)targetSessionId)
+                {
+                    continue;
+                }
+
+                IntPtr hProc = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */ | 0x0400 /* PROCESS_QUERY_INFORMATION */, false, wp.Id);
+                if (hProc == IntPtr.Zero) hProc = OpenProcess(0x0400, false, wp.Id);
+
+                if (hProc != IntPtr.Zero)
+                {
+                    try
+                    {
+                        if (OpenProcessToken(hProc, TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY, out IntPtr hToken))
+                        {
+                            try
+                            {
+                                if (DuplicateTokenEx(hToken, 0x02000000 /* MAXIMUM_ALLOWED */, IntPtr.Zero, SecurityImpersonation, 1 /* TokenPrimary */, out IntPtr hDup))
+                                {
+                                    hPrimaryToken = hDup;
+                                    DiagnosticLogger.Log($"[LaunchInConsoleSession] Acquired primary token from winlogon PID {wp.Id} in session {wp.SessionId}");
+                                    break;
+                                }
+                            }
+                            finally
+                            {
+                                CloseHandle(hToken);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        CloseHandle(hProc);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Log($"[LaunchInConsoleSession] Error querying winlogon PID {wp.Id}: {ex.Message}");
+            }
+            finally
+            {
+                wp.Dispose();
+            }
+        }
+
+        // Strategy 2: If winlogon token was not obtained, duplicate our current SYSTEM token and assign TokenSessionId
+        if (hPrimaryToken == IntPtr.Zero)
+        {
+            DiagnosticLogger.Log("[LaunchInConsoleSession] Winlogon token not available; duplicating SYSTEM token and setting session ID...");
+            if (OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY, out IntPtr hMyToken))
+            {
+                try
+                {
+                    if (DuplicateTokenEx(hMyToken, 0x02000000 /* MAXIMUM_ALLOWED */, IntPtr.Zero, SecurityImpersonation, 1 /* TokenPrimary */, out IntPtr hDup))
+                    {
+                        uint sessId = targetSessionId;
+                        if (SetTokenInformation(hDup, TokenSessionId, ref sessId, sizeof(uint)))
+                        {
+                            hPrimaryToken = hDup;
+                            DiagnosticLogger.Log($"[LaunchInConsoleSession] SetTokenInformation succeeded for session {targetSessionId}");
+                        }
+                        else
+                        {
+                            int err = Marshal.GetLastWin32Error();
+                            DiagnosticLogger.Log($"[LaunchInConsoleSession] SetTokenInformation failed: {err}");
+                            CloseHandle(hDup);
+                        }
+                    }
+                }
+                finally
+                {
+                    CloseHandle(hMyToken);
+                }
+            }
+        }
+
+        if (hPrimaryToken == IntPtr.Zero)
+        {
+            DiagnosticLogger.Log("[LaunchInConsoleSession] Failed to acquire primary token for target session.");
+            return false;
+        }
+
+        try
+        {
+            IntPtr lpEnvironment = IntPtr.Zero;
+            bool envCreated = CreateEnvironmentBlock(out lpEnvironment, hPrimaryToken, false);
+            DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateEnvironmentBlock result: {envCreated}");
+
+            try
+            {
+                string exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                if (string.IsNullOrEmpty(exePath))
+                {
+                    DiagnosticLogger.Log("[LaunchInConsoleSession] exePath is empty; aborting launch.");
+                    return false;
+                }
+
+                string cmdLine = $"\"{exePath}\"";
+                bool hasBackground = false;
+                bool hasConsoleSession = false;
+
+                foreach (var arg in args)
+                {
+                    if (arg.Equals("--background", StringComparison.OrdinalIgnoreCase)) hasBackground = true;
+                    if (arg.Equals("--console-session", StringComparison.OrdinalIgnoreCase)) hasConsoleSession = true;
+                    cmdLine += $" \"{arg}\"";
+                }
+
+                if (!hasBackground) cmdLine += " --background";
+                if (!hasConsoleSession) cmdLine += " --console-session";
+
+                if (!args.Contains("--config") && !string.IsNullOrEmpty(overrideConfigPath))
+                {
+                    cmdLine += $" --config \"{overrideConfigPath}\"";
+                }
+
+                uint creationFlags = 0;
+                if (envCreated && lpEnvironment != IntPtr.Zero)
+                {
+                    creationFlags |= CREATE_UNICODE_ENVIRONMENT;
+                }
+
+                string workingDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                // Try desktops in order: winsta0\default, winsta0\Winlogon, or default process desktop
+                string[] desktops = { @"winsta0\default", @"winsta0\Winlogon", string.Empty };
+                foreach (var desktop in desktops)
+                {
+                    var si = new STARTUPINFO();
+                    si.cb = Marshal.SizeOf<STARTUPINFO>();
+                    if (!string.IsNullOrEmpty(desktop))
+                    {
+                        si.lpDesktop = desktop;
+                    }
+
+                    DiagnosticLogger.Log($"[LaunchInConsoleSession] Calling CreateProcessAsUserW with desktop '{desktop}'...");
+                    bool result = CreateProcessAsUserW(
+                        hPrimaryToken,
+                        null,
+                        cmdLine,
+                        IntPtr.Zero,
+                        IntPtr.Zero,
+                        false,
+                        creationFlags,
+                        lpEnvironment,
+                        workingDir,
+                        ref si,
+                        out var pi);
+
+                    if (result)
+                    {
+                        DiagnosticLogger.Log($"[LaunchInConsoleSession] Successfully spawned console agent PID {pi.dwProcessId} into session {targetSessionId} (desktop '{desktop}')");
+                        CloseHandle(pi.hProcess);
+                        CloseHandle(pi.hThread);
+                        return true;
+                    }
+                    else
+                    {
+                        int err = Marshal.GetLastWin32Error();
+                        DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessAsUserW with desktop '{desktop}' failed: {err}");
+                    }
+                }
+
+                // Fallback attempt: CreateProcessWithTokenW
+                DiagnosticLogger.Log("[LaunchInConsoleSession] Fallback: attempting CreateProcessWithTokenW...");
+                var fallbackSi = new STARTUPINFO();
+                fallbackSi.cb = Marshal.SizeOf<STARTUPINFO>();
+                fallbackSi.lpDesktop = @"winsta0\default";
+
+                bool tokenResult = CreateProcessWithTokenW(
+                    hPrimaryToken,
+                    0,
+                    null,
+                    cmdLine,
+                    0,
+                    IntPtr.Zero,
+                    null,
+                    ref fallbackSi,
+                    out var fallbackPi);
+
+                if (tokenResult)
+                {
+                    DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessWithTokenW succeeded! PID {fallbackPi.dwProcessId}");
+                    CloseHandle(fallbackPi.hProcess);
+                    CloseHandle(fallbackPi.hThread);
+                    return true;
+                }
+                else
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessWithTokenW failed: {err}");
+                }
+            }
+            finally
+            {
+                if (lpEnvironment != IntPtr.Zero)
+                {
+                    DestroyEnvironmentBlock(lpEnvironment);
+                }
+            }
+        }
+        finally
+        {
+            CloseHandle(hPrimaryToken);
+        }
+
+        return false;
+    }
+
+    public static void RunSessionZeroSupervisor(string[] args, string? overrideConfigPath, CancellationToken cancellationToken = default)
+    {
+        DiagnosticLogger.Log("=== Session 0 supervisor starting ===");
+        EnsureSeDebugPrivilege();
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                uint activeSessionId = GetTargetConsoleSessionId();
+                if (activeSessionId == 0xFFFFFFFF)
+                {
+                    DiagnosticLogger.Log("[Session0Supervisor] No target session detected; sleeping 1s...");
+                    Thread.Sleep(1000);
+                    continue;
+                }
+
+                bool alreadyRunningInSession = false;
+                try
+                {
+                    var procs = Process.GetProcessesByName("RemoteLAN");
+                    foreach (var p in procs)
+                    {
+                        if (p.Id != Process.GetCurrentProcess().Id && p.SessionId == (int)activeSessionId)
+                        {
+                            alreadyRunningInSession = true;
+                            break;
+                        }
+                    }
+                }
+                catch { }
+
+                if (!alreadyRunningInSession)
+                {
+                    DiagnosticLogger.Log($"[Session0Supervisor] Agent not running in session {activeSessionId}; launching...");
+                    if (!LaunchInConsoleSession(args, overrideConfigPath))
+                    {
+                        DiagnosticLogger.Log("[Session0Supervisor] LaunchInConsoleSession failed; retrying in 2 seconds...");
+                        Thread.Sleep(2000);
+                        continue;
+                    }
+                }
+
+                for (int i = 0; i < 5 && !cancellationToken.IsCancellationRequested; i++)
+                {
+                    Thread.Sleep(1000);
+                    if (GetTargetConsoleSessionId() != activeSessionId)
+                    {
+                        DiagnosticLogger.Log($"[Session0Supervisor] Active console session shifted from {activeSessionId} to {GetTargetConsoleSessionId()}");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.LogException("Session0Supervisor unhandled loop exception", ex);
+                Thread.Sleep(3000);
+            }
+        }
+
+        DiagnosticLogger.Log("=== Session 0 supervisor stopped ===");
     }
 
     public static string GetDesktopName(IntPtr hDesktop)
@@ -579,17 +955,28 @@ public static class DesktopManager
             {
                 try
                 {
-                    if (LookupPrivilegeValue(null, "SeDebugPrivilege", out LUID luid))
+                    string[] privs = {
+                        "SeDebugPrivilege",
+                        "SeAssignPrimaryTokenPrivilege",
+                        "SeIncreaseQuotaPrivilege",
+                        "SeTcbPrivilege",
+                        "SeImpersonatePrivilege"
+                    };
+
+                    foreach (var priv in privs)
                     {
-                        var tp = new TOKEN_PRIVILEGES
+                        if (LookupPrivilegeValue(null, priv, out LUID luid))
                         {
-                            PrivilegeCount = 1,
-                            Luid = luid,
-                            Attributes = SE_PRIVILEGE_ENABLED
-                        };
-                        AdjustTokenPrivileges(hMyToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-                        _seDebugPrivilegeEnabled = true;
+                            var tp = new TOKEN_PRIVILEGES
+                            {
+                                PrivilegeCount = 1,
+                                Luid = luid,
+                                Attributes = SE_PRIVILEGE_ENABLED
+                            };
+                            AdjustTokenPrivileges(hMyToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+                        }
                     }
+                    _seDebugPrivilegeEnabled = true;
                 }
                 finally
                 {

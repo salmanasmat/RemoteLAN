@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.3.2"
 #define MyAppPublisher "Salman Asmat"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -42,6 +42,9 @@ Name: "autostart"; Description: "Start RemoteLAN automatically with Windows (in 
 [Files]
 ; Published application binaries from bin\publish
 Source: "..\bin\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Dirs]
+Name: "{commonappdata}\{#MyAppName}"; Permissions: users-full
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
@@ -97,11 +100,11 @@ begin
   end
   else if CurStep = ssPostInstall then
   begin
-    // If autostart task was chosen, create elevated Task Scheduler job for lock screen access
+    // If autostart task was chosen, create elevated system Task Scheduler job for boot and lock screen access
     if WizardIsTaskSelected('autostart') then
     begin
-      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR ' + Chr(34) + '\"' + ExpandConstant('{app}\{#MyAppExeName}') + '\" --background' + Chr(34) + ' /SC ONLOGON /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$t = Get-ScheduledTask -TaskName ''RemoteLAN_Autostart'' -ErrorAction SilentlyContinue; if ($t) { $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = ''PT0S''; Set-ScheduledTask $t }"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR ' + Chr(34) + '\"' + ExpandConstant('{app}\{#MyAppExeName}') + '\" --background' + Chr(34) + ' /SC ONSTART /RU "NT AUTHORITY\SYSTEM" /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$t = Get-ScheduledTask -TaskName ''RemoteLAN_Autostart'' -ErrorAction SilentlyContinue; if ($t) { $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = ''PT0S''; try { $b = New-ScheduledTaskTrigger -AtStartup; $l = New-ScheduledTaskTrigger -AtLogOn; $t.Triggers = @($b, $l) } catch {}; Set-ScheduledTask $t }"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
   end;
 end;

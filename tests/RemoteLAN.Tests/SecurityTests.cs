@@ -147,4 +147,67 @@ public class SecurityTests
         injector.ResetSession(1);
         injector.ResetSession(0);
     }
+
+    [Fact]
+    public void DesktopManager_GetActiveConsoleSessionId_ReturnsValue_Or_SupportsOverride()
+    {
+        uint sessionId = DesktopManager.GetActiveConsoleSessionId();
+        Assert.True(sessionId >= 0);
+
+        DesktopManager.ActiveConsoleSessionIdOverride = () => 42;
+        try
+        {
+            Assert.Equal(42u, DesktopManager.GetActiveConsoleSessionId());
+        }
+        finally
+        {
+            DesktopManager.ActiveConsoleSessionIdOverride = null;
+        }
+    }
+
+    [Fact]
+    public void DesktopManager_RunSessionZeroSupervisor_CancelsCleanly()
+    {
+        using var cts = new System.Threading.CancellationTokenSource();
+        try
+        {
+            cts.CancelAfter(100);
+            var ex = Record.Exception(() => DesktopManager.RunSessionZeroSupervisor(Array.Empty<string>(), null, cts.Token));
+            Assert.Null(ex);
+        }
+        finally
+        {
+            DesktopManager.ActiveConsoleSessionIdOverride = null;
+        }
+    }
+
+    [Fact]
+    public void ProcessStartInfo_ArgumentList_WithUseShellExecute_Validation()
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            UseShellExecute = true
+        };
+        psi.ArgumentList.Add("/c");
+        psi.ArgumentList.Add("exit 0");
+
+        Exception? caught = null;
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(psi);
+            proc?.WaitForExit();
+        }
+        catch (Exception ex)
+        {
+            caught = ex;
+        }
+
+        // If ArgumentList with UseShellExecute throws InvalidOperationException in .NET runtime,
+        // we need to know so we can ensure App.xaml.cs is safe.
+        // If caught is null, then .NET 8 fully supports ArgumentList with UseShellExecute!
+        Assert.Null(caught);
+    }
 }
+
+

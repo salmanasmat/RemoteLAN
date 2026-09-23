@@ -73,12 +73,14 @@ public static class StartupHelper
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "schtasks.exe",
-                Arguments = $"/Query /TN \"{TaskName}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            startInfo.ArgumentList.Add("/Query");
+            startInfo.ArgumentList.Add("/TN");
+            startInfo.ArgumentList.Add(TaskName);
             using var proc = System.Diagnostics.Process.Start(startInfo);
             if (proc != null)
             {
@@ -153,21 +155,43 @@ public static class StartupHelper
     {
         try
         {
-            // Escape the inner path inside the /TR quoted string
-            string escapedArgs = $"/Create /F /TN \"{TaskName}\" /TR \"\\\"{exePath}\\\" --background\" /SC ONLOGON /RL HIGHEST";
+            // If running with Administrator or SYSTEM privileges, create a task that runs at system boot under SYSTEM.
+            // This ensures RemoteLAN starts immediately upon boot on headless PCs even before anyone logs in.
+            bool isElevated = DesktopManager.IsAdministrator || DesktopManager.IsSystem;
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "schtasks.exe",
-                Arguments = escapedArgs,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            startInfo.ArgumentList.Add("/Create");
+            startInfo.ArgumentList.Add("/F");
+            startInfo.ArgumentList.Add("/TN");
+            startInfo.ArgumentList.Add(TaskName);
+            startInfo.ArgumentList.Add("/TR");
+            startInfo.ArgumentList.Add($"\"{exePath}\" --background");
+            if (isElevated)
+            {
+                startInfo.ArgumentList.Add("/SC");
+                startInfo.ArgumentList.Add("ONSTART");
+                startInfo.ArgumentList.Add("/RU");
+                startInfo.ArgumentList.Add("NT AUTHORITY\\SYSTEM");
+                startInfo.ArgumentList.Add("/RL");
+                startInfo.ArgumentList.Add("HIGHEST");
+            }
+            else
+            {
+                startInfo.ArgumentList.Add("/SC");
+                startInfo.ArgumentList.Add("ONLOGON");
+                startInfo.ArgumentList.Add("/RL");
+                startInfo.ArgumentList.Add("HIGHEST");
+            }
             using var proc = System.Diagnostics.Process.Start(startInfo);
             proc?.WaitForExit(5000);
 
-            // Configure task settings to allow battery operation and disable execution timeout
+            // Configure task settings to allow battery operation, disable timeout limits, and attach dual Boot/Logon triggers
             ConfigureTaskSettings();
         }
         catch
@@ -177,23 +201,27 @@ public static class StartupHelper
     }
 
     /// <summary>
-    /// Uses PowerShell to configure scheduled task settings so it starts on battery
-    /// and doesn't time out after 72 hours.
+    /// Uses PowerShell to configure scheduled task settings so it starts on battery,
+    /// doesn't time out, and triggers both at system boot (pre-logon) and on user logon.
     /// </summary>
     private static void ConfigureTaskSettings()
     {
         try
         {
-            string psCmd = $"$t = Get-ScheduledTask -TaskName '{TaskName}' -ErrorAction SilentlyContinue; if ($t) {{ $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask $t }}";
+            string psCmd = $"$t = Get-ScheduledTask -TaskName '{TaskName}' -ErrorAction SilentlyContinue; if ($t) {{ $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = 'PT0S'; try {{ $b = New-ScheduledTaskTrigger -AtStartup; $l = New-ScheduledTaskTrigger -AtLogOn; $t.Triggers = @($b, $l) }} catch {{}}; Set-ScheduledTask $t }}";
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psCmd}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-Command");
+            startInfo.ArgumentList.Add(psCmd);
             using var proc = System.Diagnostics.Process.Start(startInfo);
             proc?.WaitForExit(5000);
         }
@@ -213,12 +241,15 @@ public static class StartupHelper
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "schtasks.exe",
-                Arguments = $"/Delete /F /TN \"{TaskName}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            startInfo.ArgumentList.Add("/Delete");
+            startInfo.ArgumentList.Add("/F");
+            startInfo.ArgumentList.Add("/TN");
+            startInfo.ArgumentList.Add(TaskName);
             using var proc = System.Diagnostics.Process.Start(startInfo);
             proc?.WaitForExit(5000);
         }

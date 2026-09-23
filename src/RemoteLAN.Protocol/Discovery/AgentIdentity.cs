@@ -13,12 +13,67 @@ public static class AgentIdentity
     {
         get
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (string.IsNullOrWhiteSpace(appData))
+            string commonApp = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            if (!string.IsNullOrWhiteSpace(commonApp))
             {
-                appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string commonPath = Path.Combine(commonApp, "RemoteLAN", "agent.id");
+                if (File.Exists(commonPath))
+                {
+                    return commonPath;
+                }
             }
-            return Path.Combine(appData, "RemoteLAN", "agent.id");
+
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrWhiteSpace(appData))
+            {
+                string userPath = Path.Combine(appData, "RemoteLAN", "agent.id");
+                if (File.Exists(userPath))
+                {
+                    if (!string.IsNullOrWhiteSpace(commonApp))
+                    {
+                        try
+                        {
+                            string cDir = Path.Combine(commonApp, "RemoteLAN");
+                            if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
+                            string cPath = Path.Combine(cDir, "agent.id");
+                            File.Copy(userPath, cPath, true);
+                            return cPath;
+                        }
+                        catch { }
+                    }
+                    return userPath;
+                }
+            }
+
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string localPath = Path.Combine(localAppData, "RemoteLAN", "agent.id");
+                if (File.Exists(localPath))
+                {
+                    if (!string.IsNullOrWhiteSpace(commonApp))
+                    {
+                        try
+                        {
+                            string cDir = Path.Combine(commonApp, "RemoteLAN");
+                            if (!Directory.Exists(cDir)) Directory.CreateDirectory(cDir);
+                            string cPath = Path.Combine(cDir, "agent.id");
+                            File.Copy(localPath, cPath, true);
+                            return cPath;
+                        }
+                        catch { }
+                    }
+                    return localPath;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(commonApp))
+            {
+                return Path.Combine(commonApp, "RemoteLAN", "agent.id");
+            }
+
+            string fallbackApp = !string.IsNullOrWhiteSpace(appData) ? appData : localAppData;
+            return Path.Combine(fallbackApp, "RemoteLAN", "agent.id");
         }
     }
 
@@ -83,6 +138,23 @@ public static class AgentIdentity
                 }
 
                 File.WriteAllText(path, newId);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                try
+                {
+                    string localFallback = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "RemoteLAN",
+                        "agent.id");
+                    string? fallbackDir = Path.GetDirectoryName(localFallback);
+                    if (!string.IsNullOrEmpty(fallbackDir) && !Directory.Exists(fallbackDir))
+                    {
+                        Directory.CreateDirectory(fallbackDir);
+                    }
+                    File.WriteAllText(localFallback, newId);
+                }
+                catch { }
             }
             catch
             {

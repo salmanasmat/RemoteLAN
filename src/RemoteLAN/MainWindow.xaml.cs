@@ -218,6 +218,7 @@ public partial class MainWindow : Window
         LoadLocalIpAddresses();
 
         _server.Start();
+        DiagnosticLogger.Log($"[MainWindow] AgentServer started on port {_server.Port}. Host: '{Environment.MachineName}'");
 
         // Show elevation banner if running under standard user integrity
         ElevationBanner.Visibility = DesktopManager.IsAdministrator ? Visibility.Collapsed : Visibility.Visible;
@@ -1341,69 +1342,76 @@ public partial class MainWindow : Window
 
     private void InitializeTrayIcon()
     {
-        System.Drawing.Icon appIcon;
         try
         {
-            var streamInfo = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/icon.ico"));
-            if (streamInfo != null)
+            System.Drawing.Icon appIcon;
+            try
             {
-                using var stream = streamInfo.Stream;
-                appIcon = new System.Drawing.Icon(stream);
+                var streamInfo = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/icon.ico"));
+                if (streamInfo != null)
+                {
+                    using var stream = streamInfo.Stream;
+                    appIcon = new System.Drawing.Icon(stream);
+                }
+                else
+                {
+                    string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico");
+                    appIcon = System.IO.File.Exists(iconPath) ? new System.Drawing.Icon(iconPath) : System.Drawing.SystemIcons.Application;
+                }
             }
-            else
+            catch
             {
-                string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico");
-                appIcon = System.IO.File.Exists(iconPath) ? new System.Drawing.Icon(iconPath) : System.Drawing.SystemIcons.Application;
+                appIcon = System.Drawing.SystemIcons.Application;
             }
+
+            _trayIcon = new WinForms.NotifyIcon
+            {
+                Icon = appIcon,
+                Text = "RemoteLAN — LAN Remote Desktop",
+                Visible = true
+            };
+
+            var contextMenu = new WinForms.ContextMenuStrip();
+
+            var openItem = new WinForms.ToolStripMenuItem("Open RemoteLAN");
+            openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
+            openItem.Click += (s, e) => ShowAndActivate();
+
+            var settingsItem = new WinForms.ToolStripMenuItem("Settings...");
+            settingsItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(0));
+
+            var aboutItem = new WinForms.ToolStripMenuItem("About RemoteLAN");
+            aboutItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(2));
+
+            var hostItem = new WinForms.ToolStripMenuItem($"Host: {Environment.MachineName}");
+            hostItem.Enabled = false;
+
+            var exitItem = new WinForms.ToolStripMenuItem("Exit RemoteLAN");
+            exitItem.Click += (s, e) => ExitApplication();
+
+            contextMenu.Items.Add(openItem);
+            contextMenu.Items.Add(settingsItem);
+            contextMenu.Items.Add(aboutItem);
+            contextMenu.Items.Add(new WinForms.ToolStripSeparator());
+            contextMenu.Items.Add(hostItem);
+            contextMenu.Items.Add(new WinForms.ToolStripSeparator());
+            contextMenu.Items.Add(exitItem);
+
+            _trayIcon.ContextMenuStrip = contextMenu;
+
+            _trayIcon.DoubleClick += (s, e) => ShowAndActivate();
+            _trayIcon.Click += (s, e) =>
+            {
+                if (e is WinForms.MouseEventArgs mouseArgs && mouseArgs.Button == WinForms.MouseButtons.Left)
+                {
+                    ShowAndActivate();
+                }
+            };
         }
-        catch
+        catch (Exception ex)
         {
-            appIcon = System.Drawing.SystemIcons.Application;
+            DiagnosticLogger.LogException("InitializeTrayIcon (Explorer or shell unavailable)", ex);
         }
-
-        _trayIcon = new WinForms.NotifyIcon
-        {
-            Icon = appIcon,
-            Text = "RemoteLAN — LAN Remote Desktop",
-            Visible = true
-        };
-
-        var contextMenu = new WinForms.ContextMenuStrip();
-
-        var openItem = new WinForms.ToolStripMenuItem("Open RemoteLAN");
-        openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
-        openItem.Click += (s, e) => ShowAndActivate();
-
-        var settingsItem = new WinForms.ToolStripMenuItem("Settings...");
-        settingsItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(0));
-
-        var aboutItem = new WinForms.ToolStripMenuItem("About RemoteLAN");
-        aboutItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(2));
-
-        var hostItem = new WinForms.ToolStripMenuItem($"Host: {Environment.MachineName}");
-        hostItem.Enabled = false;
-
-        var exitItem = new WinForms.ToolStripMenuItem("Exit RemoteLAN");
-        exitItem.Click += (s, e) => ExitApplication();
-
-        contextMenu.Items.Add(openItem);
-        contextMenu.Items.Add(settingsItem);
-        contextMenu.Items.Add(aboutItem);
-        contextMenu.Items.Add(new WinForms.ToolStripSeparator());
-        contextMenu.Items.Add(hostItem);
-        contextMenu.Items.Add(new WinForms.ToolStripSeparator());
-        contextMenu.Items.Add(exitItem);
-
-        _trayIcon.ContextMenuStrip = contextMenu;
-
-        _trayIcon.DoubleClick += (s, e) => ShowAndActivate();
-        _trayIcon.Click += (s, e) =>
-        {
-            if (e is WinForms.MouseEventArgs mouseArgs && mouseArgs.Button == WinForms.MouseButtons.Left)
-            {
-                ShowAndActivate();
-            }
-        };
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)

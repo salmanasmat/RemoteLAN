@@ -54,3 +54,6 @@ scratch.cs
 ## RemoteLAN agent identity & runtime settings
 agent.id
 *.id
+settings.json
+service.log
+*.log

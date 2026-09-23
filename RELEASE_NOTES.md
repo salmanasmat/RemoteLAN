@@ -1,5 +1,27 @@
 # Release Notes
 
+## [1.3.2] - 2026-09-23
+
+RemoteLAN **v1.3.2** permanently resolves the post-restart pre-logon offline state on headless remote PCs by migrating the Session 0 console launch engine to native `CreateProcessAsUserW`, implementing headless interactive session discovery, establishing World SID security on single-instance IPC objects, and adding persistent diagnostic logging.
+
+### 🛡️ Pre-Logon & Headless Reliability (Fixed & Hardened)
+- **`CreateProcessAsUserW` Migration**: Replaced `CreateProcessWithTokenW` with `CreateProcessAsUserW` from `advapi32.dll`. Under Windows Session 0 isolation, processes running as `LocalSystem` cannot execute `CreateProcessWithTokenW` due to missing `seclogon` secondary logon privileges (failing with Win32 Error 1314 `ERROR_PRIVILEGE_NOT_HELD`). RemoteLAN now enables `SeAssignPrimaryTokenPrivilege`, `SeIncreaseQuotaPrivilege`, and `SeTcbPrivilege`, creates an interactive environment block via `CreateEnvironmentBlock`, and reliably spawns the console agent into Session 1.
+- **Headless Session Discovery**: On headless PCs with no physical monitor plugged into HDMI/DisplayPort, `WTSGetActiveConsoleSessionId()` often returns `0xFFFFFFFF` or `0` on early boot. `DesktopManager.GetTargetConsoleSessionId()` now scans active `winlogon.exe` processes across interactive sessions (> 0) to reliably locate the logon session.
+- **Two-Tier Primary Token Acquisition**: Supports acquiring the session primary token by duplicating `winlogon.exe`'s token in the target session, with automatic fallback to duplicating the current SYSTEM process token and assigning `TokenSessionId` via `SetTokenInformation`.
+- **Accessible World SID DACL on Single-Instance IPC**: Configured `Local\RemoteLAN_SingleInstance_Mutex` and `Local\RemoteLAN_ShowMainWindow_Event` with an explicit `WorldSid` (`Everyone` Full Control) security descriptor via `MutexAcl` and `EventWaitHandleAcl`. This ensures that when a non-elevated user later launches RemoteLAN from the desktop, it cleanly signals the background SYSTEM instance to show its window instead of crashing or failing with `UnauthorizedAccessException`.
+- **Protected Tray Icon Initialization**: Wrapped `InitializeTrayIcon()` in `MainWindow` with robust exception guards to ensure that running in a pre-logon state before `explorer.exe` has initialized does not fail application startup.
+- **Persistent Diagnostic Logging**: Added thread-safe `DiagnosticLogger` writing to `C:\ProgramData\RemoteLAN\service.log` to track boot events, supervisor transitions, process launches, Win32 error codes, and server lifecycle across system restarts.
+
+## [1.3.1] - 2026-09-23
+
+RemoteLAN **v1.3.1** fixes headless remote desktop access and connection availability immediately after a system restart, enabling full unattended remote access to the Windows sign-in lock screen before any user logs in.
+
+### 🛡️ Pre-Logon & Headless Boot Access (Fixed & Hardened)
+- **Boot-Time Startup Task**: Changed Windows startup task registration from user-logon-only (`/SC ONLOGON`) to elevated system boot execution (`/SC ONSTART /RU "NT AUTHORITY\SYSTEM" /RL HIGHEST`) with dual boot and logon triggers. RemoteLAN now starts automatically on reboot even when no user logs on.
+- **Session 0 Supervisor & Console Transition**: Introduced a Session 0 background supervisor (`DesktopManager.RunSessionZeroSupervisor`) that detects the active console session (`WTSGetActiveConsoleSessionId()`), duplicates the `winlogon.exe` token in that session, and launches the background agent into the interactive console session (`winsta0\Winlogon`).
+- **Centralized Machine-Wide Storage in `ProgramData`**: Migrated `settings.json` and `agent.id` from user-specific `%LOCALAPPDATA%` to `C:\ProgramData\RemoteLAN` with automatic migration, ensuring identical host credentials, machine GUID, and unattended passwords before and after user logon.
+- **Headless Display Hardening**: Hardened `GdiScreenCapturer` to safely default to standard 1080p fallback geometry when `GetSystemMetrics` reports zero display metrics on headless systems with no monitor connected.
+
 ## [1.3.0] - 2026-09-21
 
 RemoteLAN **v1.3.0** introduces bidirectional, zero-persistence in-session text chat between Controller and Agent over the existing authenticated TCP connection, complete with typing indicators, AnyDesk/TeamViewer-style floating host widget, and strict RAM-only ephemeral lifecycle.

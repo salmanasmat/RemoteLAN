@@ -259,4 +259,16 @@ public class SettingsManagerTests : IDisposable
         var manager2 = new SettingsManager(_tempSettingsPath);
         Assert.False(manager2.AutoEnterOsPasswordOnConnect);
     }
+
+    [Fact]
+    public void SettingsManager_GetDefaultFilePath_PointsToCommonApplicationData()
+    {
+        string defaultPath = SettingsManager.GetDefaultFilePath();
+        Assert.NotNull(defaultPath);
+        Assert.EndsWith("settings.json", defaultPath);
+        string commonDir = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        string localDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        Assert.True(defaultPath.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase) ||
+                    defaultPath.StartsWith(localDir, StringComparison.OrdinalIgnoreCase));
+    }
 }
