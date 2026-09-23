@@ -12,6 +12,8 @@ public partial class App : Application
     private EventWaitHandle? _showEvent;
     private RegisteredWaitHandle? _waitHandleRegistration;
     private MainWindow? _mainWindow;
+    private Network.AgentServer? _headlessServer;
+    private Security.SettingsManager? _settings;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -117,6 +119,7 @@ public partial class App : Application
                     Dispatcher.Invoke(() =>
                     {
                         Security.DiagnosticLogger.Log("[App] Show event received; activating MainWindow.");
+                        EnsureMainWindowCreated();
                         _mainWindow?.ShowAndActivate();
                     });
                 },
@@ -130,8 +133,14 @@ public partial class App : Application
         }
 
         // Check if application should start hidden in the background
-        var settings = new Security.SettingsManager();
-        bool isBackgroundLaunch = e.Args.Any(arg =>
+        _settings = new Security.SettingsManager();
+
+        bool isServerLaunch = e.Args.Any(arg =>
+            arg.Equals("--server", StringComparison.OrdinalIgnoreCase) ||
+            arg.Equals("/server", StringComparison.OrdinalIgnoreCase) ||
+            arg.Equals("-server", StringComparison.OrdinalIgnoreCase));
+
+        bool isBackgroundLaunch = isServerLaunch || e.Args.Any(arg =>
             arg.Equals("--background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("/background", StringComparison.OrdinalIgnoreCase) ||
             arg.Equals("-background", StringComparison.OrdinalIgnoreCase) ||
@@ -141,7 +150,7 @@ public partial class App : Application
         bool isConsoleSessionLaunch = e.Args.Any(arg =>
             arg.Equals("--console-session", StringComparison.OrdinalIgnoreCase));
 
-        if (isBackgroundLaunch && !isConsoleSessionLaunch && !Security.StartupHelper.IsRunAtStartupEnabled())
+        if (isBackgroundLaunch && !isConsoleSessionLaunch && !isServerLaunch && !Security.StartupHelper.IsRunAtStartupEnabled())
         {
             Shutdown();
             return;
@@ -150,14 +159,82 @@ public partial class App : Application
         // Auto-heal scheduled task if startup is enabled but scheduled task is missing
         Security.StartupHelper.EnsureStartupSynchronized();
 
-        bool startInBackground = settings.StartMinimizedToTray || isBackgroundLaunch;
+        bool startInBackground = _settings.StartMinimizedToTray || isBackgroundLaunch;
 
-        _mainWindow = new MainWindow();
+        // If running in headless server mode (boot supervisor/console-session, --server, or lock screen),
+        // initialize the AgentServer headlessly without instantiating WPF MainWindow yet.
+        bool shouldRunHeadless = isServerLaunch || isConsoleSessionLaunch || (startInBackground && Security.DesktopManager.IsLockScreenActive());
 
-        if (!startInBackground)
+        if (shouldRunHeadless)
         {
-            _mainWindow.Show();
-            _mainWindow.Activate();
+            StartHeadlessServer(_settings);
+        }
+        else
+        {
+            _mainWindow = new MainWindow(_settings);
+
+            if (!startInBackground)
+            {
+                _mainWindow.Show();
+                _mainWindow.Activate();
+            }
+        }
+    }
+
+    private void StartHeadlessServer(Security.SettingsManager settings)
+    {
+        try
+        {
+            string? savedHostPin = settings.GetHostPin();
+            bool unattendedEnabled = settings.IsUnattendedAccessEnabled();
+            string? unattendedPassword = settings.GetUnattendedPassword();
+
+            _headlessServer = new Network.AgentServer(
+                Protocol.Transport.ProtocolConstants.DefaultPort,
+                initialPin: savedHostPin,
+                unattendedAccessEnabled: unattendedEnabled,
+                unattendedPassword: unattendedPassword,
+                settingsManager: settings);
+
+            if (string.IsNullOrWhiteSpace(savedHostPin))
+            {
+                settings.SaveHostPin(_headlessServer.PinManager.CurrentPin);
+            }
+
+            int rotationMinutes = settings.PinRotationIntervalMinutes;
+            if (rotationMinutes > 0)
+            {
+                _headlessServer.PinManager.SetRotationInterval(rotationMinutes);
+            }
+
+            _headlessServer.IncomingConnectionRequested += HeadlessServer_IncomingConnectionRequested;
+            _headlessServer.Start();
+            Security.DiagnosticLogger.Log($"[App.StartHeadlessServer] Headless AgentServer started on port {_headlessServer.Port}. Host: '{Environment.MachineName}'");
+        }
+        catch (Exception ex)
+        {
+            Security.DiagnosticLogger.LogException("StartHeadlessServer", ex);
+        }
+    }
+
+    private void HeadlessServer_IncomingConnectionRequested(Network.IncomingConnectionEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            EnsureMainWindowCreated();
+            _mainWindow?.HandleIncomingConnectionRequest(e);
+        });
+    }
+
+    private void EnsureMainWindowCreated()
+    {
+        if (_mainWindow == null)
+        {
+            if (_headlessServer != null)
+            {
+                _headlessServer.IncomingConnectionRequested -= HeadlessServer_IncomingConnectionRequested;
+            }
+            _mainWindow = new MainWindow(_settings ?? new Security.SettingsManager(), _headlessServer);
         }
     }
 
@@ -203,6 +280,7 @@ public partial class App : Application
     {
         try
         {
+            _headlessServer?.Dispose();
             _waitHandleRegistration?.Unregister(null);
             _showEvent?.Dispose();
             if (_instanceMutex != null)

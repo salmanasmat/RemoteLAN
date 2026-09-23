@@ -271,4 +271,30 @@ public class SettingsManagerTests : IDisposable
         Assert.True(defaultPath.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase) ||
                     defaultPath.StartsWith(localDir, StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task SettingsManager_DeviceHistory_TimestampOnlyUpdate_DoesNotRewriteDisk()
+    {
+        var manager = new SettingsManager(_tempSettingsPath);
+        manager.UpdateDeviceInHistory("DESKTOP-TEST", "192.168.1.50", 7070, "1.0.0");
+        Assert.True(File.Exists(_tempSettingsPath));
+
+        DateTime initialWriteTime = File.GetLastWriteTimeUtc(_tempSettingsPath);
+
+        // Small delay to ensure timestamp difference if a disk write were to occur
+        await Task.Delay(50);
+
+        // Update with identical structural properties (timestamp-only ping)
+        manager.UpdateDeviceInHistory("DESKTOP-TEST", "192.168.1.50", 7070, "1.0.0");
+
+        DateTime pingWriteTime = File.GetLastWriteTimeUtc(_tempSettingsPath);
+        Assert.Equal(initialWriteTime, pingWriteTime);
+
+        // Now update with changed version (structural change)
+        await Task.Delay(50);
+        manager.UpdateDeviceInHistory("DESKTOP-TEST", "192.168.1.50", 7070, "1.0.1");
+
+        DateTime structuralWriteTime = File.GetLastWriteTimeUtc(_tempSettingsPath);
+        Assert.True(structuralWriteTime > initialWriteTime);
+    }
 }

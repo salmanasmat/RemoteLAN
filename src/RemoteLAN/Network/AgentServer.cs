@@ -249,6 +249,21 @@ public sealed class AgentServer : IDisposable
             }
             else
             {
+                // If the host is currently at the Windows sign-in / lock screen, no interactive user is logged in
+                // on winsta0\default to click "Accept". Immediately inform the viewer to supply the Host PIN or unattended password.
+                if (DesktopManager.IsLockScreenActive())
+                {
+                    var lockResp = new AuthResponse
+                    {
+                        Success = false,
+                        Message = "Remote host is currently at the Windows sign-in screen. Please enter the Host PIN or Unattended Password to connect."
+                    };
+                    await _writer.WriteFrameAsync(networkStream, MessageType.AuthResponse, lockResp.Serialize(), ct).ConfigureAwait(false);
+                    client.Close();
+                    StatusChanged?.Invoke($"Declined unauthenticated connection from {endpoint}: Host is at lock screen, PIN required.");
+                    return;
+                }
+
                 // Client connected with empty PIN: request approval from remote user on this PC
                 var tcsApproval = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var reqArgs = new IncomingConnectionEventArgs(endpoint, clientIp, clientMachineName, tcsApproval);

@@ -63,13 +63,40 @@ public static class StartupHelper
         return false;
     }
 
+    private static bool? _taskScheduledCache;
+    private static DateTime _taskScheduledCacheTime = DateTime.MinValue;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
+
+    public static void InvalidateCache()
+    {
+        _taskScheduledCache = null;
+    }
+
     /// <summary>
     /// Verifies if the elevated Scheduled Task exists in Windows Task Scheduler.
     /// </summary>
     public static bool IsTaskScheduled()
     {
+        if (_taskScheduledCache.HasValue && (DateTime.UtcNow - _taskScheduledCacheTime) < CacheDuration)
+        {
+            return _taskScheduledCache.Value;
+        }
+
         try
         {
+            // First attempt fast direct registry check if privileged
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\" + TaskName, false);
+                if (key != null)
+                {
+                    _taskScheduledCache = true;
+                    _taskScheduledCacheTime = DateTime.UtcNow;
+                    return true;
+                }
+            }
+            catch { }
+
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "schtasks.exe",
@@ -85,7 +112,10 @@ public static class StartupHelper
             if (proc != null)
             {
                 proc.WaitForExit(3000);
-                return proc.ExitCode == 0;
+                bool scheduled = proc.ExitCode == 0;
+                _taskScheduledCache = scheduled;
+                _taskScheduledCacheTime = DateTime.UtcNow;
+                return scheduled;
             }
         }
         catch
@@ -155,6 +185,7 @@ public static class StartupHelper
     {
         try
         {
+            InvalidateCache();
             // If running with Administrator or SYSTEM privileges, create a task that runs at system boot under SYSTEM.
             // This ensures RemoteLAN starts immediately upon boot on headless PCs even before anyone logs in.
             bool isElevated = DesktopManager.IsAdministrator || DesktopManager.IsSystem;
@@ -171,7 +202,7 @@ public static class StartupHelper
             startInfo.ArgumentList.Add("/TN");
             startInfo.ArgumentList.Add(TaskName);
             startInfo.ArgumentList.Add("/TR");
-            startInfo.ArgumentList.Add($"\"{exePath}\" --background");
+            startInfo.ArgumentList.Add($"\"{exePath}\" --background --server");
             if (isElevated)
             {
                 startInfo.ArgumentList.Add("/SC");
@@ -238,6 +269,7 @@ public static class StartupHelper
     {
         try
         {
+            InvalidateCache();
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "schtasks.exe",
@@ -267,7 +299,10 @@ public static class StartupHelper
     {
         try
         {
-            if (IsRunAtStartupEnabled() && !IsTaskScheduled())
+            // If already registered in Task Scheduler, no healing needed
+            if (IsTaskScheduled()) return;
+
+            if (IsRunAtStartupEnabled())
             {
                 string exePath = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
                 if (!string.IsNullOrEmpty(exePath))

@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -16,6 +16,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 - **Bidirectional Control**: Connect from PC A to PC B, or from PC B to PC A, or simultaneously.
 - **Zero Cloud Relay**: Direct TCP socket connections between machines on your trusted local area network.
 - **Continuous Auto-Discovery & Multi-NIC Deduplication**: Automatically discovers active RemoteLAN PCs on your subnet in the background using persistent, stable Machine GUIDs (`agent.id`). Multi-homed machines (Ethernet + Wi-Fi) are deduplicated into exactly one tile per machine ID, automatically prioritizing wired Ethernet over Wi-Fi with overridable adapter selection.
+- **Zero Disk Thrashing & High-Performance Idle Architecture**: Eliminates 100% HDD active time. LAN discovery pings update timestamps strictly in-memory, writing to disk only upon structural device changes. Scheduled task verification is cached in-memory, and supervisor process polling uses native Win32 exit codes with exponential backoff.
+- **Pre-Logon Lock Screen Remote Access & Headless Server (RustDesk-Aligned)**: Seamless remote access to headless and locked machines immediately after reboot without requiring prior local Windows logon. Runs a lightweight background daemon (`--server`) with socket listeners and screen capture ready before user login, with zero GUI overhead and lazy WPF window materialization on demand.
 - **In-Session Ephemeral Chat (AnyDesk/TeamViewer Style)**: Full bidirectional text messaging between controller and agent during an active remote session:
   - **Zero-Footprint Ephemeral Lifetime**: Pure in-memory architecture (`ChatViewModel`) with no files, logs, or persistent storage. Completely wiped the instant the session disconnects.
   - **Controller Slide-Out Drawer**: Collapsible chat panel integrated directly into `SessionWindow` with unread message badges on the top toolbar and live typing indicators.
@@ -45,8 +47,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and live status countdown.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.3, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.3`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.4, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.4`).
 
 ---
 
@@ -59,7 +61,7 @@ RemoteLAN/
 │   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (110 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (114 tests)
 ```
 
 ### Network Protocols
@@ -121,11 +123,11 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.3.3.exe`
+`dist/RemoteLAN_Setup_v1.3.4.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%ProgramData%\RemoteLAN`.
-- **Post-Install Launch Option**: Includes a checkbox on the final installer page to launch RemoteLAN immediately into the foreground (checked by default).
+- **Post-Install Launch Option**: Includes a checkbox on the final installer page to launch RemoteLAN immediately into the foreground (unchecked by default).
 - **Automatic Background Startup**: Configures an elevated Windows Scheduled Task (`RemoteLAN_Autostart` with `/RL HIGHEST` at logon) synchronized with the Windows Run registry key (`--background`), allowing silent, unattended startup on boot without UAC prompts even when running on battery.
 - **Single-Instance Management**: Prevents duplicate processes; manual launch signals and brings the active background instance to the foreground.
 - **System Tray Integration**: Closing the window hides to the notification tray; right-click tray icon to open or exit.

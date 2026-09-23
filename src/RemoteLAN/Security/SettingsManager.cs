@@ -477,12 +477,20 @@ public sealed class SettingsManager
                 string.Equals(d.MachineName, machineName, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(d.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase));
 
+            bool structurallyChanged = false;
             if (existing != null)
             {
-                existing.MachineName = machineName;
-                existing.IpAddress = ipAddress;
-                existing.Port = port;
-                existing.Version = version;
+                if (!string.Equals(existing.MachineName, machineName, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(existing.IpAddress, ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                    existing.Port != port ||
+                    !string.Equals(existing.Version, version, StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.MachineName = machineName;
+                    existing.IpAddress = ipAddress;
+                    existing.Port = port;
+                    existing.Version = version;
+                    structurallyChanged = true;
+                }
                 existing.LastSeenUtc = DateTime.UtcNow;
             }
             else
@@ -495,9 +503,13 @@ public sealed class SettingsManager
                     Version = version,
                     LastSeenUtc = DateTime.UtcNow
                 });
+                structurallyChanged = true;
             }
 
-            SaveLocked();
+            if (structurallyChanged)
+            {
+                SaveLocked();
+            }
         }
     }
 
@@ -511,14 +523,24 @@ public sealed class SettingsManager
                 string.Equals(d.MachineName, agent.MachineName, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(d.IpAddress, agent.IpAddress, StringComparison.OrdinalIgnoreCase));
 
+            bool structurallyChanged = false;
             if (existing != null)
             {
-                existing.MachineId = agent.MachineId;
-                existing.MachineName = agent.MachineName;
-                existing.IpAddress = agent.IpAddress;
-                existing.InterfaceType = agent.InterfaceType;
-                existing.Port = agent.Port;
-                existing.Version = agent.Version;
+                if (!string.Equals(existing.MachineId, agent.MachineId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(existing.MachineName, agent.MachineName, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(existing.IpAddress, agent.IpAddress, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(existing.InterfaceType, agent.InterfaceType, StringComparison.OrdinalIgnoreCase) ||
+                    existing.Port != agent.Port ||
+                    !string.Equals(existing.Version, agent.Version, StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.MachineId = agent.MachineId;
+                    existing.MachineName = agent.MachineName;
+                    existing.IpAddress = agent.IpAddress;
+                    existing.InterfaceType = agent.InterfaceType;
+                    existing.Port = agent.Port;
+                    existing.Version = agent.Version;
+                    structurallyChanged = true;
+                }
                 existing.LastSeenUtc = agent.LastSeen;
             }
             else
@@ -533,9 +555,13 @@ public sealed class SettingsManager
                     Version = agent.Version,
                     LastSeenUtc = agent.LastSeen
                 });
+                structurallyChanged = true;
             }
 
-            SaveLocked();
+            if (structurallyChanged)
+            {
+                SaveLocked();
+            }
         }
     }
 

@@ -2,7 +2,7 @@
 ; Compliant with AGENTS.md requirements
 
 #define MyAppName "RemoteLAN"
-#define MyAppVersion "1.3.3"
+#define MyAppVersion "1.3.4"
 #define MyAppPublisher "Salman Asmat"
 #define MyAppExeName "RemoteLAN.exe"
 #define MyAppAssocName MyAppName + " Remote Connection"
@@ -52,10 +52,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 
 [Registry]
 ; Configure automatic Windows startup in background mode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --background"; Flags: uninsdeletevalue; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --background --server"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser unchecked
 
 [Code]
 // Forcefully terminate any running instance of RemoteLAN
@@ -103,7 +103,7 @@ begin
     // If autostart task was chosen, create elevated system Task Scheduler job for boot and lock screen access
     if WizardIsTaskSelected('autostart') then
     begin
-      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR ' + Chr(34) + '\"' + ExpandConstant('{app}\{#MyAppExeName}') + '\" --background' + Chr(34) + ' /SC ONSTART /RU "NT AUTHORITY\SYSTEM" /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('schtasks.exe', '/Create /F /TN "RemoteLAN_Autostart" /TR ' + Chr(34) + '\"' + ExpandConstant('{app}\{#MyAppExeName}') + '\" --background --server' + Chr(34) + ' /SC ONSTART /RU "NT AUTHORITY\SYSTEM" /RL HIGHEST', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$t = Get-ScheduledTask -TaskName ''RemoteLAN_Autostart'' -ErrorAction SilentlyContinue; if ($t) { $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; $t.Settings.ExecutionTimeLimit = ''PT0S''; try { $b = New-ScheduledTaskTrigger -AtStartup; $l = New-ScheduledTaskTrigger -AtLogOn; $t.Triggers = @($b, $l) } catch {}; Set-ScheduledTask $t }"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
   end;
@@ -116,7 +116,7 @@ var
 begin
   if not CheckForMutexes('Local\RemoteLAN_SingleInstance_Mutex') then
   begin
-    ShellExec('open', ExpandConstant('{app}\{#MyAppExeName}'), '--background', '', SW_HIDE, ewNoWait, ResultCode);
+    ShellExec('open', ExpandConstant('{app}\{#MyAppExeName}'), '--background --server', '', SW_HIDE, ewNoWait, ResultCode);
   end;
 end;
 

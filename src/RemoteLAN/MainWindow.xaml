@@ -520,7 +520,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v1.3.3" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v1.3.4" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>

@@ -21,7 +21,7 @@ namespace RemoteLAN;
 
 public partial class MainWindow : Window
 {
-    private readonly SettingsManager _settingsManager = new();
+    private readonly SettingsManager _settingsManager;
     private readonly AgentServer _server;
     private readonly LanDiscoveryClient _discoveryClient = new();
     private readonly ObservableCollection<DiscoveredAgent> _discoveredAgents = new();
@@ -177,28 +177,46 @@ public partial class MainWindow : Window
         return (sorted, true);
     }
 
-    public MainWindow()
+    public MainWindow() : this(new SettingsManager(), null)
     {
+    }
+
+    public MainWindow(SettingsManager settings, AgentServer? existingServer = null)
+    {
+        _settingsManager = settings ?? new SettingsManager();
         InitializeComponent();
 
         HostDeviceNameText.Text = Environment.MachineName;
 
-        // Load persistent host PIN and unattended access credentials
-        string? savedHostPin = _settingsManager.GetHostPin();
-        bool unattendedEnabled = _settingsManager.IsUnattendedAccessEnabled();
-        string? unattendedPassword = _settingsManager.GetUnattendedPassword();
-
-        _server = new AgentServer(
-            ProtocolConstants.DefaultPort,
-            initialPin: savedHostPin,
-            unattendedAccessEnabled: unattendedEnabled,
-            unattendedPassword: unattendedPassword,
-            settingsManager: _settingsManager);
-
-        // If this is the first run and a PIN was newly generated, persist it
-        if (string.IsNullOrWhiteSpace(savedHostPin))
+        if (existingServer != null)
         {
-            _settingsManager.SaveHostPin(_server.PinManager.CurrentPin);
+            _server = existingServer;
+        }
+        else
+        {
+            // Load persistent host PIN and unattended access credentials
+            string? savedHostPin = _settingsManager.GetHostPin();
+            bool unattendedEnabled = _settingsManager.IsUnattendedAccessEnabled();
+            string? unattendedPassword = _settingsManager.GetUnattendedPassword();
+
+            _server = new AgentServer(
+                ProtocolConstants.DefaultPort,
+                initialPin: savedHostPin,
+                unattendedAccessEnabled: unattendedEnabled,
+                unattendedPassword: unattendedPassword,
+                settingsManager: _settingsManager);
+
+            // If this is the first run and a PIN was newly generated, persist it
+            if (string.IsNullOrWhiteSpace(savedHostPin))
+            {
+                _settingsManager.SaveHostPin(_server.PinManager.CurrentPin);
+            }
+
+            int rotationMinutes = _settingsManager.PinRotationIntervalMinutes;
+            if (rotationMinutes > 0)
+            {
+                _server.PinManager.SetRotationInterval(rotationMinutes);
+            }
         }
 
         _server.StatusChanged += Server_StatusChanged;
@@ -208,17 +226,24 @@ public partial class MainWindow : Window
         _server.IncomingConnectionDismissed += Server_IncomingConnectionDismissed;
         _server.PinManager.PinChanged += PinManager_PinChanged;
 
-        int rotationMinutes = _settingsManager.PinRotationIntervalMinutes;
-        if (rotationMinutes > 0)
+        int configuredRotation = _settingsManager.PinRotationIntervalMinutes;
+        if (configuredRotation > 0)
         {
-            _server.PinManager.SetRotationInterval(rotationMinutes);
+            _server.PinManager.SetRotationInterval(configuredRotation);
         }
 
         UpdatePinDisplay(_server.PinManager.CurrentPin);
         LoadLocalIpAddresses();
 
         _server.Start();
-        DiagnosticLogger.Log($"[MainWindow] AgentServer started on port {_server.Port}. Host: '{Environment.MachineName}'");
+        if (existingServer == null)
+        {
+            DiagnosticLogger.Log($"[MainWindow] AgentServer started on port {_server.Port}. Host: '{Environment.MachineName}'");
+        }
+        else
+        {
+            DiagnosticLogger.Log($"[MainWindow] Attached to existing AgentServer running on port {_server.Port}. Host: '{Environment.MachineName}'");
+        }
 
         // Show elevation banner if running under standard user integrity
         ElevationBanner.Visibility = DesktopManager.IsAdministrator ? Visibility.Collapsed : Visibility.Visible;
@@ -246,8 +271,8 @@ public partial class MainWindow : Window
         UpdateEmptyState();
         UpdateDiscoveredCount();
 
-        // Setup continuous automatic LAN discovery (runs every 5 seconds)
-        _discoveryTimer.Interval = TimeSpan.FromSeconds(5);
+        // Setup continuous automatic LAN discovery (runs every 10 seconds)
+        _discoveryTimer.Interval = TimeSpan.FromSeconds(10);
         _discoveryTimer.Tick += async (s, e) => await PerformDiscoveryScanAsync();
         _discoveryTimer.Start();
 
@@ -426,20 +451,37 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            ShowAndActivate();
-            _trayIcon?.ShowBalloonTip(3000, "RemoteLAN Connection", $"Incoming remote control session from {endpoint}", WinForms.ToolTipIcon.Info);
+            bool isLocked = DesktopManager.IsLockScreenActive();
+            if (!isLocked)
+            {
+                ShowAndActivate();
+            }
+
+            try
+            {
+                _trayIcon?.ShowBalloonTip(3000, "RemoteLAN Connection", $"Incoming remote control session from {endpoint}", WinForms.ToolTipIcon.Info);
+            }
+            catch { }
+
             ActiveClientCard.Visibility = Visibility.Visible;
             ActiveClientEndpointText.Text = endpoint;
             SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
 
-            // Launch the floating host chat widget
-            try
+            if (!isLocked)
             {
-                _hostChatWindow?.Close();
+                // Launch the floating host chat widget
+                try
+                {
+                    _hostChatWindow?.Close();
+                }
+                catch { }
+                try
+                {
+                    _hostChatWindow = new Views.HostChatWindow(_server, endpoint);
+                    _hostChatWindow.Show();
+                }
+                catch { }
             }
-            catch { }
-            _hostChatWindow = new Views.HostChatWindow(_server, endpoint);
-            _hostChatWindow.Show();
         });
     }
 
@@ -455,7 +497,7 @@ public partial class MainWindow : Window
         });
     }
 
-    private void Server_IncomingConnectionRequested(IncomingConnectionEventArgs e)
+    public void HandleIncomingConnectionRequest(IncomingConnectionEventArgs e)
     {
         Dispatcher.Invoke(() =>
         {
@@ -465,8 +507,13 @@ public partial class MainWindow : Window
             IncomingRequestOverlay.Visibility = Visibility.Visible;
             ShowAndActivate();
             try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
-            _trayIcon?.ShowBalloonTip(5000, "Incoming Remote Connection", $"{e.ClientMachineName} ({e.ClientIp}) is requesting access.", WinForms.ToolTipIcon.Info);
+            try { _trayIcon?.ShowBalloonTip(5000, "Incoming Remote Connection", $"{e.ClientMachineName} ({e.ClientIp}) is requesting access.", WinForms.ToolTipIcon.Info); } catch { }
         });
+    }
+
+    private void Server_IncomingConnectionRequested(IncomingConnectionEventArgs e)
+    {
+        HandleIncomingConnectionRequest(e);
     }
 
     private void Server_IncomingConnectionDismissed()
@@ -896,7 +943,11 @@ public partial class MainWindow : Window
                 {
                     if (PinModalOverlay.Visibility == Visibility.Visible && _modalTargetIp == ip)
                     {
-                        if (message.Contains("declined", StringComparison.OrdinalIgnoreCase))
+                        if (message.Contains("sign-in", StringComparison.OrdinalIgnoreCase) || message.Contains("lock", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModalStatusText.Text = "Remote host is at Windows sign-in screen. Enter PIN or unattended password to connect.";
+                        }
+                        else if (message.Contains("declined", StringComparison.OrdinalIgnoreCase))
                         {
                             ModalStatusText.Text = "Connection was declined by the remote user.";
                         }
@@ -1165,7 +1216,11 @@ public partial class MainWindow : Window
         }
         else
         {
-            if (errorMsg != null && errorMsg.Contains("Authentication", StringComparison.OrdinalIgnoreCase))
+            if (errorMsg != null && (errorMsg.Contains("sign-in", StringComparison.OrdinalIgnoreCase) || errorMsg.Contains("lock", StringComparison.OrdinalIgnoreCase)))
+            {
+                ModalStatusText.Text = "Remote host is at Windows sign-in screen. Enter PIN or unattended password to connect.";
+            }
+            else if (errorMsg != null && errorMsg.Contains("Authentication", StringComparison.OrdinalIgnoreCase))
             {
                 ModalStatusText.Text = "Incorrect access code or password. Please verify the credentials on the remote PC.";
             }

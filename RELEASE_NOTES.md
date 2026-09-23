@@ -1,5 +1,22 @@
 # Release Notes
 
+## [1.3.4] - 2026-09-23
+
+RemoteLAN **v1.3.4** eliminates 100% HDD active time disk thrashing and delivers RustDesk-inspired headless background server execution for seamless remote access to the Windows sign-in screen without prior user login.
+
+### ⚡ Performance & Zero Disk Thrashing
+- **Eliminated Discovery Persistence Disk Thrash**: Resolved continuous 100% HDD active time caused by 5-second `settings.json` re-serializations in `SettingsManager.UpdateDeviceInHistory`. Timestamp updates on LAN discovery pings are now retained in memory, writing to disk only when structural device metadata (IP, port, hostname, version) changes.
+- **Optimized LAN Discovery Frequency**: Balanced discovery background polling interval from 5s to 10s, reducing idle CPU wakeups and network socket load while maintaining rapid device discovery.
+- **Cached Startup Task Verification**: Eliminated periodic heavy process spawning (`schtasks.exe` and `powershell.exe`) in `StartupHelper.EnsureStartupSynchronized` through thread-safe in-memory caching and fast direct Windows Run registry checks.
+- **Process Handle Tracking with Backoff**: Replaced 1-second `Process.GetProcessesByName("RemoteLAN")` polling loops in `DesktopManager.RunSessionZeroSupervisor` with native `GetExitCodeProcess` and wait, with exponential backoff on launch failure to prevent rapid process spawn loops.
+
+### 🖥️ Headless Server & Pre-Logon Remote Access (RustDesk Architecture)
+- **RustDesk-Aligned Headless Daemon (`--server`)**: Implemented headless agent server mode where RemoteLAN initializes network listeners (TCP 7070 and UDP 7071 discovery) and screen capture engines without instantiating WPF `MainWindow` or `NotifyIcon` before user logon. This eliminates pre-logon desktop window station crashes (`winsta0\default`) and reduces idle memory footprint to ~20MB.
+- **Pre-Logon Lock Screen Direct Authentication**: Remote clients can authenticate and control PCs sitting at the Windows sign-in lock screen using Host PIN or Unattended Password without requiring prior Windows login.
+- **Instant Pre-Logon Notice on Empty PIN**: When a remote viewer connects without entering a PIN to a locked host PC, `AgentServer` immediately detects that the host is at the sign-in screen and informs the viewer to enter the PIN/password, rather than waiting 45 seconds for non-existent interactive approval.
+- **Desktop Window Station Attachment**: Updated child process spawning in `DesktopManager.LaunchInConsoleSession` to inherit session desktop (`si.lpDesktop = string.Empty`), matching RustDesk's headless background process model and ensuring GDI screen capturer and input injector seamlessly attach to `winsta0\Winlogon`.
+- **Lazy GUI Materialization**: When a logged-in user launches RemoteLAN manually or an interactive connection request arrives, `App` dynamically materializes `MainWindow` and attaches it directly to the running `AgentServer` without socket restarts or connection drops.
+
 ## [1.3.3] - 2026-09-23
 
 RemoteLAN **v1.3.3** delivers OWASP-standard security sweep hardening, command injection prevention across system management routines, and verified zero-vulnerability supply chain dependencies.

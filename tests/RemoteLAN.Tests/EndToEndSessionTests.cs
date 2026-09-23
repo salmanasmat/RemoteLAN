@@ -1,6 +1,7 @@
 using RemoteLAN.Network;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
+using RemoteLAN.Security;
 
 namespace RemoteLAN.Tests;
 
@@ -218,6 +219,63 @@ public class EndToEndSessionTests
         finally
         {
             agent.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task EndToEnd_HostAtLockScreen_EmptyPin_ImmediatelyRejectedWithSignInScreenMessage()
+    {
+        const int port = 9205;
+        DesktopManager.MockIsLockScreenActive = true;
+        try
+        {
+            using var agent = new AgentServer(port, initialPin: "888999");
+            agent.Start();
+
+            using var controller = new ControllerClient();
+            var errorTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            controller.StateChanged += (state, msg) =>
+            {
+                if (state == ControllerState.Error)
+                {
+                    errorTcs.TrySetResult(msg);
+                }
+            };
+
+            var connectTask = controller.ConnectAsync("127.0.0.1", port, pin: string.Empty);
+            var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(3000));
+
+            Assert.Same(errorTcs.Task, completed);
+            string errorMsg = await errorTcs.Task;
+            Assert.Contains("sign-in screen", errorMsg, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(ControllerState.Error, controller.State);
+        }
+        finally
+        {
+            DesktopManager.MockIsLockScreenActive = null;
+        }
+    }
+
+    [Fact]
+    public async Task EndToEnd_HostAtLockScreen_ValidPin_AuthenticatesSuccessfully()
+    {
+        const int port = 9206;
+        DesktopManager.MockIsLockScreenActive = true;
+        try
+        {
+            using var agent = new AgentServer(port, initialPin: "112233");
+            agent.Start();
+
+            using var controller = new ControllerClient();
+            await controller.ConnectAsync("127.0.0.1", port, pin: "112233");
+
+            Assert.Equal(ControllerState.Connected, controller.State);
+            controller.Disconnect();
+        }
+        finally
+        {
+            DesktopManager.MockIsLockScreenActive = null;
         }
     }
 }

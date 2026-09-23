@@ -66,6 +66,11 @@ public static class DesktopManager
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr hObject);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+
+    private const uint STILL_ACTIVE = 259;
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern bool GetUserObjectInformation(IntPtr hObj, int nIndex, StringBuilder pvInfo, uint nLength, out uint lpnLengthNeeded);
 
@@ -245,7 +250,7 @@ public static class DesktopManager
                                     {
                                         var si = new STARTUPINFO();
                                         si.cb = Marshal.SizeOf<STARTUPINFO>();
-                                        si.lpDesktop = "winsta0\\default";
+                                        si.lpDesktop = string.Empty;
 
                                         string exePath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
                                         if (string.IsNullOrEmpty(exePath)) continue;
@@ -364,8 +369,23 @@ public static class DesktopManager
         return consoleSessionId != 0xFFFFFFFF ? consoleSessionId : 1;
     }
 
+    private static bool CloseAndReturnTrue(IntPtr handle)
+    {
+        if (handle != IntPtr.Zero)
+        {
+            CloseHandle(handle);
+        }
+        return true;
+    }
+
     public static bool LaunchInConsoleSession(string[] args, string? overrideConfigPath)
     {
+        return LaunchInConsoleSession(args, overrideConfigPath, out var hProcess) && CloseAndReturnTrue(hProcess);
+    }
+
+    public static bool LaunchInConsoleSession(string[] args, string? overrideConfigPath, out IntPtr hSpawnedProcess)
+    {
+        hSpawnedProcess = IntPtr.Zero;
         EnsureSeDebugPrivilege();
 
         uint targetSessionId = GetTargetConsoleSessionId();
@@ -485,16 +505,19 @@ public static class DesktopManager
                 string cmdLine = $"\"{exePath}\"";
                 bool hasBackground = false;
                 bool hasConsoleSession = false;
+                bool hasServer = false;
 
                 foreach (var arg in args)
                 {
                     if (arg.Equals("--background", StringComparison.OrdinalIgnoreCase)) hasBackground = true;
                     if (arg.Equals("--console-session", StringComparison.OrdinalIgnoreCase)) hasConsoleSession = true;
+                    if (arg.Equals("--server", StringComparison.OrdinalIgnoreCase)) hasServer = true;
                     cmdLine += $" \"{arg}\"";
                 }
 
                 if (!hasBackground) cmdLine += " --background";
                 if (!hasConsoleSession) cmdLine += " --console-session";
+                if (!hasServer) cmdLine += " --server";
 
                 if (!args.Contains("--config") && !string.IsNullOrEmpty(overrideConfigPath))
                 {
@@ -509,50 +532,48 @@ public static class DesktopManager
 
                 string workingDir = AppDomain.CurrentDomain.BaseDirectory;
 
-                // Try desktops in order: winsta0\default, winsta0\Winlogon, or default process desktop
-                string[] desktops = { @"winsta0\default", @"winsta0\Winlogon", string.Empty };
-                foreach (var desktop in desktops)
+                // Following RustDesk architecture: do NOT bind to winsta0\default before user logon!
+                // Setting lpDesktop to empty allows Windows to attach the process to the window station properly.
+                var si = new STARTUPINFO();
+                si.cb = Marshal.SizeOf<STARTUPINFO>();
+                si.dwFlags = 1 /* STARTF_USESHOWWINDOW */;
+                si.wShowWindow = 0 /* SW_HIDE */;
+                si.lpDesktop = string.Empty;
+
+                DiagnosticLogger.Log($"[LaunchInConsoleSession] Calling CreateProcessAsUserW into session {targetSessionId}...");
+                bool result = CreateProcessAsUserW(
+                    hPrimaryToken,
+                    null,
+                    cmdLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    false,
+                    creationFlags,
+                    lpEnvironment,
+                    workingDir,
+                    ref si,
+                    out var pi);
+
+                if (result)
                 {
-                    var si = new STARTUPINFO();
-                    si.cb = Marshal.SizeOf<STARTUPINFO>();
-                    if (!string.IsNullOrEmpty(desktop))
-                    {
-                        si.lpDesktop = desktop;
-                    }
-
-                    DiagnosticLogger.Log($"[LaunchInConsoleSession] Calling CreateProcessAsUserW with desktop '{desktop}'...");
-                    bool result = CreateProcessAsUserW(
-                        hPrimaryToken,
-                        null,
-                        cmdLine,
-                        IntPtr.Zero,
-                        IntPtr.Zero,
-                        false,
-                        creationFlags,
-                        lpEnvironment,
-                        workingDir,
-                        ref si,
-                        out var pi);
-
-                    if (result)
-                    {
-                        DiagnosticLogger.Log($"[LaunchInConsoleSession] Successfully spawned console agent PID {pi.dwProcessId} into session {targetSessionId} (desktop '{desktop}')");
-                        CloseHandle(pi.hProcess);
-                        CloseHandle(pi.hThread);
-                        return true;
-                    }
-                    else
-                    {
-                        int err = Marshal.GetLastWin32Error();
-                        DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessAsUserW with desktop '{desktop}' failed: {err}");
-                    }
+                    DiagnosticLogger.Log($"[LaunchInConsoleSession] Successfully spawned console agent PID {pi.dwProcessId} into session {targetSessionId}");
+                    CloseHandle(pi.hThread);
+                    hSpawnedProcess = pi.hProcess;
+                    return true;
+                }
+                else
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessAsUserW failed: {err}");
                 }
 
                 // Fallback attempt: CreateProcessWithTokenW
                 DiagnosticLogger.Log("[LaunchInConsoleSession] Fallback: attempting CreateProcessWithTokenW...");
                 var fallbackSi = new STARTUPINFO();
                 fallbackSi.cb = Marshal.SizeOf<STARTUPINFO>();
-                fallbackSi.lpDesktop = @"winsta0\default";
+                fallbackSi.dwFlags = 1;
+                fallbackSi.wShowWindow = 0;
+                fallbackSi.lpDesktop = string.Empty;
 
                 bool tokenResult = CreateProcessWithTokenW(
                     hPrimaryToken,
@@ -568,8 +589,8 @@ public static class DesktopManager
                 if (tokenResult)
                 {
                     DiagnosticLogger.Log($"[LaunchInConsoleSession] CreateProcessWithTokenW succeeded! PID {fallbackPi.dwProcessId}");
-                    CloseHandle(fallbackPi.hProcess);
                     CloseHandle(fallbackPi.hThread);
+                    hSpawnedProcess = fallbackPi.hProcess;
                     return true;
                 }
                 else
@@ -599,62 +620,116 @@ public static class DesktopManager
         DiagnosticLogger.Log("=== Session 0 supervisor starting ===");
         EnsureSeDebugPrivilege();
 
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                uint activeSessionId = GetTargetConsoleSessionId();
-                if (activeSessionId == 0xFFFFFFFF)
-                {
-                    DiagnosticLogger.Log("[Session0Supervisor] No target session detected; sleeping 1s...");
-                    Thread.Sleep(1000);
-                    continue;
-                }
+        IntPtr hCurrentChildProcess = IntPtr.Zero;
+        uint currentSessionId = 0xFFFFFFFF;
+        int failureCount = 0;
 
-                bool alreadyRunningInSession = false;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
                 try
                 {
-                    var procs = Process.GetProcessesByName("RemoteLAN");
-                    foreach (var p in procs)
+                    uint targetSessionId = GetTargetConsoleSessionId();
+                    if (targetSessionId == 0xFFFFFFFF)
                     {
-                        if (p.Id != Process.GetCurrentProcess().Id && p.SessionId == (int)activeSessionId)
+                        DiagnosticLogger.Log("[Session0Supervisor] No target session detected; sleeping 2s...");
+                        Thread.Sleep(2000);
+                        continue;
+                    }
+
+                    // If active session shifted (e.g. from Session 1 to Session 2):
+                    if (hCurrentChildProcess != IntPtr.Zero && targetSessionId != currentSessionId)
+                    {
+                        DiagnosticLogger.Log($"[Session0Supervisor] Target console session shifted from {currentSessionId} to {targetSessionId}. Re-targeting agent...");
+                        try
                         {
-                            alreadyRunningInSession = true;
+                            CloseHandle(hCurrentChildProcess);
+                        }
+                        catch { }
+                        hCurrentChildProcess = IntPtr.Zero;
+                    }
+
+                    // Check if current child process is still running via its process handle (zero disk/handle thrashing)
+                    bool isRunning = false;
+                    if (hCurrentChildProcess != IntPtr.Zero)
+                    {
+                        if (GetExitCodeProcess(hCurrentChildProcess, out uint exitCode) && exitCode == STILL_ACTIVE)
+                        {
+                            isRunning = true;
+                        }
+                        else
+                        {
+                            DiagnosticLogger.Log($"[Session0Supervisor] Agent process in session {currentSessionId} exited (code: {exitCode}).");
+                            CloseHandle(hCurrentChildProcess);
+                            hCurrentChildProcess = IntPtr.Zero;
+                        }
+                    }
+
+                    // Fallback check if handle was not held (e.g. supervisor restarted)
+                    if (!isRunning && hCurrentChildProcess == IntPtr.Zero)
+                    {
+                        try
+                        {
+                            var procs = Process.GetProcessesByName("RemoteLAN");
+                            foreach (var p in procs)
+                            {
+                                if (p.Id != Process.GetCurrentProcess().Id && p.SessionId == (int)targetSessionId)
+                                {
+                                    isRunning = true;
+                                    break;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (!isRunning)
+                    {
+                        DiagnosticLogger.Log($"[Session0Supervisor] Agent not running in session {targetSessionId}; launching...");
+                        if (LaunchInConsoleSession(args, overrideConfigPath, out hCurrentChildProcess))
+                        {
+                            currentSessionId = targetSessionId;
+                            failureCount = 0;
+                            DiagnosticLogger.Log($"[Session0Supervisor] Agent successfully spawned in session {targetSessionId}.");
+                        }
+                        else
+                        {
+                            failureCount++;
+                            int backoff = Math.Min(30, 2 + (failureCount * 3)); // 5s, 8s, 11s up to 30s
+                            DiagnosticLogger.Log($"[Session0Supervisor] LaunchInConsoleSession failed (attempt {failureCount}); backing off for {backoff}s...");
+                            for (int i = 0; i < backoff && !cancellationToken.IsCancellationRequested; i++)
+                            {
+                                Thread.Sleep(1000);
+                            }
+                            continue;
+                        }
+                    }
+
+                    for (int i = 0; i < 5 && !cancellationToken.IsCancellationRequested; i++)
+                    {
+                        Thread.Sleep(1000);
+                        if (GetTargetConsoleSessionId() != targetSessionId)
+                        {
                             break;
                         }
                     }
                 }
-                catch { }
-
-                if (!alreadyRunningInSession)
+                catch (Exception ex)
                 {
-                    DiagnosticLogger.Log($"[Session0Supervisor] Agent not running in session {activeSessionId}; launching...");
-                    if (!LaunchInConsoleSession(args, overrideConfigPath))
-                    {
-                        DiagnosticLogger.Log("[Session0Supervisor] LaunchInConsoleSession failed; retrying in 2 seconds...");
-                        Thread.Sleep(2000);
-                        continue;
-                    }
+                    DiagnosticLogger.LogException("Session0Supervisor unhandled loop exception", ex);
+                    Thread.Sleep(5000);
                 }
-
-                for (int i = 0; i < 5 && !cancellationToken.IsCancellationRequested; i++)
-                {
-                    Thread.Sleep(1000);
-                    if (GetTargetConsoleSessionId() != activeSessionId)
-                    {
-                        DiagnosticLogger.Log($"[Session0Supervisor] Active console session shifted from {activeSessionId} to {GetTargetConsoleSessionId()}");
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                DiagnosticLogger.LogException("Session0Supervisor unhandled loop exception", ex);
-                Thread.Sleep(3000);
             }
         }
-
-        DiagnosticLogger.Log("=== Session 0 supervisor stopped ===");
+        finally
+        {
+            if (hCurrentChildProcess != IntPtr.Zero)
+            {
+                try { CloseHandle(hCurrentChildProcess); } catch { }
+            }
+            DiagnosticLogger.Log("=== Session 0 supervisor stopped ===");
+        }
     }
 
     public static string GetDesktopName(IntPtr hDesktop)
@@ -702,8 +777,12 @@ public static class DesktopManager
 
     public static bool IsLockScreenActiveCached => _isLockScreenCached;
 
+    internal static bool? MockIsLockScreenActive;
+
     public static bool IsLockScreenActive()
     {
+        if (MockIsLockScreenActive.HasValue) return MockIsLockScreenActive.Value;
+
         IntPtr hDesk = OpenInputDesktop(0, false, 0x0001 /* DESKTOP_READOBJECTS */);
         if (hDesk != IntPtr.Zero)
         {
