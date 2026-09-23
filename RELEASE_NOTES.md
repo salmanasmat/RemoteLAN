@@ -1,5 +1,16 @@
 # Release Notes
 
+## [1.3.3] - 2026-09-23
+
+RemoteLAN **v1.3.3** delivers OWASP-standard security sweep hardening, command injection prevention across system management routines, and verified zero-vulnerability supply chain dependencies.
+
+### 🛡️ Security Hardening (OWASP Compliance)
+- **Command Injection Prevention in Startup Management**: Hardened `StartupHelper` to invoke `schtasks.exe` and `powershell.exe` exclusively through structured `ProcessStartInfo.ArgumentList`, completely eliminating string concatenation and potential parameter injection vectors during startup task creation, querying, deletion, and battery trigger configuration.
+- **Process Elevation & Shell Safety**: Validated runtime behavior for `ProcessStartInfo.ArgumentList` with `UseShellExecute = true` on Windows .NET 8, verifying that elevation requests cleanly execute without argument syntax truncation.
+- **Supply Chain Vulnerability Verification**: Audited the entire dependency tree using `dotnet list package --vulnerable` and confirmed zero security advisories across all active runtime packages (`System.Drawing.Common`, `Vortice.Direct3D11`, `Vortice.DXGI`).
+- **Runtime Log & Sensitive File Protection**: Expanded [.gitignore](.gitignore) with explicit exclusions for `service.log` and crash dump patterns, guarding against accidental commitment of local session traces.
+- **Security Policy Audit**: Updated [SECURITY.md](SECURITY.md) to reflect the complete v1.3.3 OWASP audit, supported version lifecycles, and credential protection guidance.
+
 ## [1.3.2] - 2026-09-23
 
 RemoteLAN **v1.3.2** permanently resolves the post-restart pre-logon offline state on headless remote PCs by migrating the Session 0 console launch engine to native `CreateProcessAsUserW`, implementing headless interactive session discovery, establishing World SID security on single-instance IPC objects, and adding persistent diagnostic logging.

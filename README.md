@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -45,8 +45,8 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and live status countdown.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.2, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.2`).
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.3, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.3`).
 
 ---
 
@@ -121,7 +121,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.3.2.exe`
+`dist/RemoteLAN_Setup_v1.3.3.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%ProgramData%\RemoteLAN`.
