@@ -57,3 +57,5 @@ agent.id
 settings.json
 service.log
 *.log
+*.pfx
+RemoteLAN WebBridge.md

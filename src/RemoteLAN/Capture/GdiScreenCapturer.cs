@@ -13,6 +13,7 @@ public sealed class GdiScreenCapturer : IScreenCapturer
     private Graphics? _placeholderGraphics;
     private int _width;
     private int _height;
+    private readonly object _syncLock = new();
 
     public int Width => _width > 0 ? _width : 1920;
     public int Height => _height > 0 ? _height : 1080;
@@ -55,44 +56,47 @@ public sealed class GdiScreenCapturer : IScreenCapturer
 
     public Bitmap? CaptureFrame()
     {
-        // 1. Ensure thread is attached to the currently active input desktop (Default vs Winlogon)
-        DesktopManager.EnsureThreadOnInputDesktop(out string currentDesktop);
-        if (_lastDesktopName != null && !string.Equals(_lastDesktopName, currentDesktop, StringComparison.OrdinalIgnoreCase))
+        lock (_syncLock)
         {
-            // Desktop switched! Invalidate screen graphics to re-bind to the new desktop
-            Initialize();
-        }
-        _lastDesktopName = currentDesktop;
-
-        int curWidth = GetSystemMetrics(SM_CXSCREEN);
-        int curHeight = GetSystemMetrics(SM_CYSCREEN);
-        if (_screenBitmap == null || _screenGraphics == null || (curWidth > 0 && curHeight > 0 && (curWidth != _width || curHeight != _height)))
-        {
-            if (!Initialize())
+            // 1. Ensure thread is attached to the currently active input desktop (Default vs Winlogon)
+            DesktopManager.EnsureThreadOnInputDesktop(out string currentDesktop);
+            if (_lastDesktopName != null && !string.Equals(_lastDesktopName, currentDesktop, StringComparison.OrdinalIgnoreCase))
             {
-                return RenderPlaceholder();
+                // Desktop switched! Invalidate screen graphics to re-bind to the new desktop
+                Initialize();
             }
-        }
+            _lastDesktopName = currentDesktop;
 
-        try
-        {
-            _screenGraphics!.CopyFromScreen(0, 0, 0, 0, new Size(_width, _height), CopyPixelOperation.SourceCopy);
-            return _screenBitmap;
-        }
-        catch
-        {
-            // Desktop session locked or non-interactive; try re-init once
-            try
+            int curWidth = GetSystemMetrics(SM_CXSCREEN);
+            int curHeight = GetSystemMetrics(SM_CYSCREEN);
+            if (_screenBitmap == null || _screenGraphics == null || (curWidth > 0 && curHeight > 0 && (curWidth != _width || curHeight != _height)))
             {
-                if (Initialize())
+                if (!Initialize())
                 {
-                    _screenGraphics!.CopyFromScreen(0, 0, 0, 0, new Size(_width, _height), CopyPixelOperation.SourceCopy);
-                    return _screenBitmap;
+                    return RenderPlaceholder();
                 }
             }
-            catch { }
 
-            return RenderPlaceholder();
+            try
+            {
+                _screenGraphics!.CopyFromScreen(0, 0, 0, 0, new Size(_width, _height), CopyPixelOperation.SourceCopy);
+                return _screenBitmap;
+            }
+            catch
+            {
+                // Desktop session locked or non-interactive; try re-init once
+                try
+                {
+                    if (Initialize())
+                    {
+                        _screenGraphics!.CopyFromScreen(0, 0, 0, 0, new Size(_width, _height), CopyPixelOperation.SourceCopy);
+                        return _screenBitmap;
+                    }
+                }
+                catch { }
+
+                return RenderPlaceholder();
+            }
         }
     }
 

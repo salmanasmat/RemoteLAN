@@ -9,6 +9,7 @@ using RemoteLAN.Security;
 using RemoteLAN.Protocol.Messages;
 using RemoteLAN.Protocol.Transport;
 using RemoteLAN.Power;
+using RemoteLAN.WebBridge;
 
 namespace RemoteLAN.Network;
 
@@ -22,6 +23,7 @@ public sealed class AgentServer : IDisposable
     private readonly IInputInjector _inputInjector;
     private readonly NetworkFrameWriter _writer;
     private readonly AgentDiscoveryResponder _discoveryResponder;
+    private WebBridgeServer? _webBridgeServer;
 
     private TcpListener? _listener;
     private CancellationTokenSource? _serverCts;
@@ -50,6 +52,7 @@ public sealed class AgentServer : IDisposable
     public event Action? ChatSessionEnded;
 
     public PinManager PinManager => _pinManager;
+    public WebBridgeServer? WebBridgeServer => _webBridgeServer;
 
     private bool _unattendedKeepAwakeAcquired;
 
@@ -102,12 +105,54 @@ public sealed class AgentServer : IDisposable
         _listener.Start();
         _discoveryResponder.Start();
 
+        if (_settingsManager?.WebBridgeEnabled == true)
+        {
+            StartWebBridge();
+        }
+
         StatusChanged?.Invoke("Ready");
         _listenerTask = Task.Run(() => AcceptConnectionsAsync(_serverCts.Token));
     }
 
+    public void StartWebBridge()
+    {
+        if (_webBridgeServer != null) return;
+        int port = _settingsManager?.WebBridgePort ?? 8443;
+        int fps = _settingsManager?.WebBridgeFps ?? 15;
+
+        _webBridgeServer = new WebBridgeServer(
+            port: port,
+            pinManager: _pinManager,
+            settingsManager: _settingsManager,
+            capturer: _capturer,
+            inputInjector: _inputInjector,
+            targetFps: fps,
+            useTls: true);
+
+        _webBridgeServer.ClientConnected += ip =>
+        {
+            ClientConnected?.Invoke($"[WebBridge] {ip}");
+        };
+        _webBridgeServer.ClientDisconnected += () =>
+        {
+            ChatSessionEnded?.Invoke();
+            ClientDisconnected?.Invoke();
+        };
+
+        _ = _webBridgeServer.StartAsync();
+    }
+
+    public void StopWebBridge()
+    {
+        if (_webBridgeServer == null) return;
+        var server = _webBridgeServer;
+        _webBridgeServer = null;
+        _ = server.StopAsync();
+    }
+
     public void Stop()
     {
+        StopWebBridge();
         _serverCts?.Cancel();
         _discoveryResponder.Stop();
         _inputInjector.ResetSession(0);
@@ -139,6 +184,7 @@ public sealed class AgentServer : IDisposable
                 _currentClient = null;
             }
         }
+        _webBridgeServer?.DisconnectSession();
     }
 
     private async Task AcceptConnectionsAsync(CancellationToken ct)
@@ -617,6 +663,7 @@ public sealed class AgentServer : IDisposable
         _discoveryResponder.Dispose();
         _capturer.Dispose();
         _inputInjector.Dispose();
+        _webBridgeServer?.Dispose();
     }
 }
 

@@ -22,6 +22,7 @@ public partial class HostChatWindow : Window
     private readonly ChatViewModel _chatViewModel = new();
     private bool _isExpanded;
     private readonly DispatcherTimer _typingTimer;
+    private bool _isClosing;
     private const double CollapsedHeight = 60;   // outer Window height when pill
     private const double ExpandedHeight  = 420;  // outer Window height when open
 
@@ -54,6 +55,7 @@ public partial class HostChatWindow : Window
         _server.ChatMessageReceived  += OnControllerMessage;
         _server.ControllerTypingStarted += OnControllerTyping;
         _server.ChatSessionEnded     += OnSessionEnded;
+        _server.ClientDisconnected   += OnSessionEnded;
     }
 
     // ─── Session events ──────────────────────────────────────────────────────
@@ -85,13 +87,29 @@ public partial class HostChatWindow : Window
         });
     }
 
+    public void CloseWindow()
+    {
+        if (_isClosing) return;
+        _isClosing = true;
+
+        if (Dispatcher.CheckAccess())
+        {
+            try
+            {
+                _chatViewModel.Clear();
+                Close();
+            }
+            catch { }
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(CloseWindow);
+        }
+    }
+
     private void OnSessionEnded()
     {
-        Dispatcher.BeginInvoke(() =>
-        {
-            _chatViewModel.Clear();
-            Close();
-        });
+        CloseWindow();
     }
 
     // ─── UI helpers ──────────────────────────────────────────────────────────
@@ -208,7 +226,14 @@ public partial class HostChatWindow : Window
 
     private void ToggleBtn_Click(object sender, RoutedEventArgs e)
     {
+        e.Handled = true;
         if (_isExpanded) Collapse(); else Expand();
+    }
+
+    private void CloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        CloseWindow();
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -271,6 +296,7 @@ public partial class HostChatWindow : Window
         _server.ChatMessageReceived     -= OnControllerMessage;
         _server.ControllerTypingStarted -= OnControllerTyping;
         _server.ChatSessionEnded        -= OnSessionEnded;
+        _server.ClientDisconnected      -= OnSessionEnded;
         _chatViewModel.Clear();
         base.OnClosed(e);
     }

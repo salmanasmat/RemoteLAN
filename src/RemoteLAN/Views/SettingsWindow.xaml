@@ -142,12 +142,13 @@
                 <!-- Navigation Tabs -->
                 <StackPanel Grid.Row="1">
                     <RadioButton x:Name="NavSecurityBtn" Content="🛡️  Security &amp; Access" Style="{StaticResource NavButtonStyle}" IsChecked="True" Checked="NavSecurityBtn_Checked"/>
+                    <RadioButton x:Name="NavWebBridgeBtn" Content="🌐  Browser Access" Style="{StaticResource NavButtonStyle}" Checked="NavWebBridgeBtn_Checked"/>
                     <RadioButton x:Name="NavGeneralBtn" Content="⚙️  General &amp; System" Style="{StaticResource NavButtonStyle}" Checked="NavGeneralBtn_Checked"/>
                     <RadioButton x:Name="NavAboutBtn" Content="ℹ️  About RemoteLAN" Style="{StaticResource NavButtonStyle}" Checked="NavAboutBtn_Checked"/>
                 </StackPanel>
 
                 <!-- Sidebar Footer Note -->
-                <TextBlock Grid.Row="2" Text="RemoteLAN v1.3.4" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                <TextBlock Grid.Row="2" Text="RemoteLAN v1.4.0" FontSize="11" Foreground="#94A3B8" HorizontalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -234,13 +235,13 @@
                             <Grid Margin="0,6,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="260"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                     <TextBlock Text="Maximum failed attempts before lockout" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
                                     <TextBlock Text="Number of failed auth attempts before blocking the IP." FontSize="11" Foreground="#94A3B8"/>
                                 </StackPanel>
-                                <ComboBox Grid.Column="1" x:Name="MaxAttemptsComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="MaxAttemptsComboBox_SelectionChanged">
+                                <ComboBox Grid.Column="1" x:Name="MaxAttemptsComboBox" Height="34" VerticalContentAlignment="Center" SelectionChanged="MaxAttemptsComboBox_SelectionChanged">
                                     <ComboBoxItem Content="3 attempts"/>
                                     <ComboBoxItem Content="5 attempts (Recommended)"/>
                                     <ComboBoxItem Content="10 attempts"/>
@@ -250,13 +251,13 @@
                             <Grid Margin="0,6,0,12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="280"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                     <TextBlock Text="Lockout duration" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
                                     <TextBlock Text="How long an offending IP address remains blocked." FontSize="11" Foreground="#94A3B8"/>
                                 </StackPanel>
-                                <ComboBox Grid.Column="1" x:Name="LockoutDurationComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="LockoutDurationComboBox_SelectionChanged">
+                                <ComboBox Grid.Column="1" x:Name="LockoutDurationComboBox" Height="34" VerticalContentAlignment="Center" SelectionChanged="LockoutDurationComboBox_SelectionChanged">
                                     <ComboBoxItem Content="5 minutes"/>
                                     <ComboBoxItem Content="10 minutes (Recommended)"/>
                                     <ComboBoxItem Content="30 minutes"/>
@@ -288,13 +289,13 @@
                         <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="280"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                 <TextBlock Text="Security PIN Auto-Rotation" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
                                 <TextBlock Text="Automatically regenerate a new host PIN after a specified time interval." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
                             </StackPanel>
-                            <ComboBox Grid.Column="1" x:Name="PinRotationComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="PinRotationComboBox_SelectionChanged">
+                            <ComboBox Grid.Column="1" x:Name="PinRotationComboBox" Height="34" VerticalContentAlignment="Center" SelectionChanged="PinRotationComboBox_SelectionChanged">
                                 <ComboBoxItem Content="Never (Default)"/>
                                 <ComboBoxItem Content="Every 15 minutes"/>
                                 <ComboBoxItem Content="Every 30 minutes"/>
@@ -381,6 +382,133 @@
             </ScrollViewer>
 
             <!-- ============================================================= -->
+            <!-- TAB: WEBBRIDGE (BROWSER ACCESS)                               -->
+            <!-- ============================================================= -->
+            <ScrollViewer x:Name="WebBridgePanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed" Focusable="False" Padding="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Browser Remote Access (WebBridge)" FontSize="17" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,4"/>
+                    <TextBlock Text="Control this PC from any phone, tablet, or browser on your local network without installing an app." FontSize="12" Foreground="#64748B" Margin="0,0,0,14"/>
+
+                    <!-- Master Toggle Card -->
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Enable Browser Access (WebBridge)" FontSize="14" FontWeight="Bold" Foreground="#1E293B"/>
+                                    <TextBlock Text="Runs an embedded, secure web server on this PC for ad-hoc browser remote control." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <CheckBox x:Name="EnableWebBridgeCheckBox" Grid.Column="1" Content="Enable" FontWeight="SemiBold" FontSize="12" Foreground="#1E293B" Cursor="Hand" VerticalAlignment="Center"
+                                          Checked="EnableWebBridgeCheckBox_Changed" Unchecked="EnableWebBridgeCheckBox_Changed"/>
+                            </Grid>
+
+                            <!-- Configuration Details Area -->
+                            <StackPanel x:Name="WebBridgeConfigArea" Margin="0,8,0,0">
+                                <Grid Margin="0,6,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="140"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="HTTPS / WebSocket Port" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
+                                        <TextBlock Text="TCP port for web connections (default 8443)." FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                    <TextBox Grid.Column="1" x:Name="WebBridgePortTextBox" Height="32" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                                             FontSize="13" Text="8443" TextChanged="WebBridgePortTextBox_TextChanged"/>
+                                </Grid>
+
+                                <Grid Margin="0,6,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Streaming Frame Rate" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
+                                        <TextBlock Text="Target FPS for browser mirror (10-30 FPS)." FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" x:Name="WebBridgeFpsComboBox" Height="34" VerticalContentAlignment="Center" SelectionChanged="WebBridgeFpsComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="10 FPS (Low Bandwidth)"/>
+                                        <ComboBoxItem Content="15 FPS (Default)"/>
+                                        <ComboBoxItem Content="24 FPS (Smooth)"/>
+                                        <ComboBoxItem Content="30 FPS (High Performance)"/>
+                                    </ComboBox>
+                                </Grid>
+
+                                <Grid Margin="0,6,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="320"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="Network Interface (IP)" FontSize="12" FontWeight="SemiBold" Foreground="#334155"/>
+                                        <TextBlock Text="Select your phone's network (Wi-Fi is recommended)." FontSize="11" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" x:Name="WebBridgeAdapterComboBox" Height="34" VerticalContentAlignment="Center" SelectionChanged="WebBridgeAdapterComboBox_SelectionChanged"/>
+                                </Grid>
+
+                                <!-- Firewall Rule Advisory Banner -->
+                                <Border x:Name="WebBridgeFirewallWarningBorder" Background="#FEF3C7" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,6,0,8" Visibility="Collapsed">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="⚠️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Windows Firewall may block phone access on Wi-Fi" FontSize="11.5" FontWeight="SemiBold" Foreground="#92400E"/>
+                                            <TextBlock Text="Add an inbound firewall rule for port 8443 to allow phone connections." FontSize="10.5" Foreground="#B45309" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" x:Name="WebBridgeAllowFirewallBtn" Content="🛡️ Allow in Firewall" Height="28" Padding="10,0" Style="{StaticResource PrimaryButtonStyle}"
+                                                FontSize="11" Click="WebBridgeAllowFirewallBtn_Click" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Local Access Helper Card with QR Code -->
+                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,6,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left: Instructions & URL -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <TextBlock Text="How to Connect from Mobile or Other Devices:" FontSize="12" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,6"/>
+                                            <TextBlock Text="1. Ensure your phone or tablet is connected to the same Wi-Fi network." FontSize="11" Foreground="#64748B" Margin="0,0,0,3"/>
+                                            <TextBlock Text="2. Scan the QR code with your camera or open in Safari / Chrome:" FontSize="11" Foreground="#64748B" Margin="0,0,0,6"/>
+                                            <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" x:Name="WebBridgeUrlText" Text="https://127.0.0.1:8443" FontFamily="Consolas, monospace" FontSize="13" FontWeight="Bold" Foreground="#2563EB" VerticalAlignment="Center"/>
+                                                    <Button Grid.Column="1" x:Name="CopyWebBridgeUrlBtn" Content="Copy URL" Style="{StaticResource SecondaryButtonStyle}" Padding="8,4" FontSize="11" Click="CopyWebBridgeUrlBtn_Click"/>
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock Text="3. Enter your RemoteLAN Host PIN or Unattended Password to start controlling." FontSize="11" Foreground="#64748B"/>
+                                        </StackPanel>
+
+                                        <!-- Right: QR Code Visual Card -->
+                                        <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="10" VerticalAlignment="Center">
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <Image x:Name="WebBridgeQrImage" Width="124" Height="124" RenderOptions.BitmapScalingMode="NearestNeighbor" SnapsToDevicePixels="True"/>
+                                                <TextBlock Text="📱 Scan with Camera" FontSize="10.5" FontWeight="SemiBold" Foreground="#475569" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ============================================================= -->
             <!-- TAB 3: ABOUT PROJECT & DEVELOPER                              -->
             <!-- ============================================================= -->
             <ScrollViewer x:Name="AboutPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed" Focusable="False" Padding="0,0,10,0">
@@ -400,7 +528,7 @@
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="RemoteLAN" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
                                      <Border Background="#E0F2FE" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                          <TextBlock Text="v1.3.4" FontSize="11" FontWeight="Bold" Foreground="#0284C7"/>
+                                          <TextBlock Text="v1.4.0" FontSize="11" FontWeight="Bold" Foreground="#0284C7"/>
                                      </Border>
                                 </StackPanel>
                                 <TextBlock Text="High-Performance Peer-to-Peer Remote Desktop for Windows" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" Margin="0,2,0,4"/>

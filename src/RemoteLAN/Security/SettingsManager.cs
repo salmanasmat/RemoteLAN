@@ -28,6 +28,11 @@ public sealed class SettingsManager
         // General application preferences
         public bool StartMinimizedToTray { get; set; } = false;
         public bool MinimizeToTrayOnClose { get; set; } = true;
+
+        // WebBridge (Browser-based remote access)
+        public bool WebBridgeEnabled { get; set; } = false;
+        public int WebBridgePort { get; set; } = 8443;
+        public int WebBridgeFps { get; set; } = 15;
     }
 
     public sealed class DiscoveredDeviceHistoryItem
@@ -169,6 +174,24 @@ public sealed class SettingsManager
     {
         get { lock (_lock) return _data.MinimizeToTrayOnClose; }
         set { lock (_lock) { _data.MinimizeToTrayOnClose = value; SaveLocked(); } }
+    }
+
+    public bool WebBridgeEnabled
+    {
+        get { lock (_lock) return _data.WebBridgeEnabled; }
+        set { lock (_lock) { _data.WebBridgeEnabled = value; SaveLocked(); } }
+    }
+
+    public int WebBridgePort
+    {
+        get { lock (_lock) return _data.WebBridgePort; }
+        set { lock (_lock) { _data.WebBridgePort = Math.Clamp(value, 1024, 65535); SaveLocked(); } }
+    }
+
+    public int WebBridgeFps
+    {
+        get { lock (_lock) return _data.WebBridgeFps; }
+        set { lock (_lock) { _data.WebBridgeFps = Math.Clamp(value, 1, 60); SaveLocked(); } }
     }
 
     public bool IsIpLockedOut(string ip, out TimeSpan remaining)

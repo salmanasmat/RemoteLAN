@@ -1,6 +1,6 @@
 # RemoteLAN
 
-[![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)](https://semver.org)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://semver.org)
 [![Downloads](https://img.shields.io/github/downloads/salmanasmat/RemoteLAN/total.svg)](https://github.com/salmanasmat/RemoteLAN/releases)
 [![Target](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://www.microsoft.com/windows)
@@ -47,8 +47,23 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
   - **Unattended Access Control**: Toggle unattended access, configure permanent passwords, and reveal/hide password inputs with dynamic card collapsing.
   - **Scrollable & Responsive Content Layout**: Smooth vertical scrolling containers across Security, General, and About tabs ensuring zero card cropping regardless of screen resolution or DPI scaling.
   - **Unauthorized Access & Brute-Force Protection**: Automatic rate-limiting and temporary IP lockout after repeated failed PIN/password attempts, configurable thresholds, lockout durations, and live status countdown.
-- **About Section & Developer Credentials**: Built-in About view providing project details (v1.3.4, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
-- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.3.4`).
+- **RemoteLAN WebBridge (Browser Remote Access)**: Control this PC directly from any web browser on your LAN (iOS Safari, Android Chrome, tablet, or secondary PC) with zero client app installations:
+  - **Zero-Typing QR Code Instant Access**: Launch `📱 Connect Phone (QR)` from the main window, system tray menu, or Settings to immediately display a high-resolution, scannable QR code in an expanded, scroll-free dialog with active adapter selection. Pointing your iPhone / Android camera at the QR code automatically opens the secure session in Safari or Chrome.
+  - **Embedded Kestrel Server**: Runs a high-performance, lightweight HTTPS + WebSocket server embedded directly in the RemoteLAN host process (configurable port, default 8443).
+  - **Mobile Touch & Full-Screen Trackpad Engine with Live Pointer**:
+    - **Direct Interactive Touchscreen Mode (Default)**: Intuitive direct interaction where tapping any desktop element clicks it immediately, double-tapping opens folders or apps, long-pressing (550ms) triggers right-click with haptic feedback, and two-finger pinching zooms in and out.
+    - **Visible Mouse Pointer**: Crisp SVG arrow cursor rendered directly over the remote desktop canvas, tracking exact coordinates with instant touch position and click feedback ripples.
+    - **Full-Screen Trackpad Mode**: Optional mode where the entire mobile display (including top and bottom letterbox areas) functions as a laptop trackpad with relative delta steering, tap-to-click, and quick thumb action buttons (`Left Click`, `✊ Hold Drag`, `Right Click`).
+    - **Pinch-to-Zoom & Pan**: Smooth two-finger pinch-to-zoom (1.0x to 4.0x) with panning and one-tap zoom reset badge.
+    - **Anti-Crop Visual Viewport Keyboard Adaptation**: Seamlessly detects mobile software keyboards using `window.visualViewport`, dynamically shrinking and shifting the desktop viewport above the keyboard so inputs and taskbars are never cropped.
+    - **Unicode Typing & Special Keys**: Direct mobile keyboard character input via Unicode injection, plus floating toolbar keys (Ctrl+Alt+Del with lock screen wake and Task Manager launch, Esc, Tab, Win, Enter, Backspace, Arrow keys).
+    - **Zero-Blackscreen Engine**: Throttled touch events and thread-safe persistent capture buffers preventing black screens during active mobile touch interaction.
+  - **Modern Application-Wide Light Mode Dropdowns**: Refined dropdown controls across all main, settings, and modal dialogs with rounded borders, smooth hover animations, expanded column widths, and zero text truncation.
+  - **Apple Safari TLS & SAN Compliance**: Automatically generates and manages self-signed X.509 certificates with Subject Alternative Names (SAN) for all local IPv4 addresses and 365-day validity limits (complying strictly with Apple iOS 13+ / macOS 10.15+ TLS rules), plus one-tap `/cert` profile download.
+  - **Windows Firewall Integration**: Automatically checks and configures inbound TCP firewall rules for port 8443 across all network profiles (including Public Wi-Fi) with one-click in-app elevation.
+  - **Unified Security & Lockout**: Directly shares RemoteLAN's `PinManager` (PIN rotation & permanent unattended password) and `SettingsManager` brute-force lockout rules.
+- **About Section & Developer Credentials**: Built-in About view providing project details (v1.4.0, GPL-3.0 open source license, technical architecture) and developer credentials (**Salman Asmat**).
+- **Semantic Versioning**: Adheres strictly to [SemVer 2.0.0](https://semver.org) (Current version: `1.4.0`).
 
 ---
 
@@ -58,10 +73,10 @@ A high-performance, custom, LAN-only remote desktop tool for internal office use
 RemoteLAN/
 ├── RemoteLAN.slnx                    # Solution file
 ├── src/
-│   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport)
+│   ├── RemoteLAN/                    # Primary Unified AnyDesk-style Application (Host + Client Viewport + WebBridge)
 │   └── RemoteLAN.Protocol/           # Shared wire protocol, framing, messages, discovery models
 └── tests/
-    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and lock recovery test suite (114 tests)
+    └── RemoteLAN.Tests/              # Automated unit, discovery, security, power, input pipeline, and WebBridge test suite (125 tests)
 ```
 
 ### Network Protocols
@@ -91,7 +106,11 @@ All authentication, desktop video frames, and remote mouse/keyboard inputs multi
 - `0x36` — `PowerAction` (Remote system Lock, Sleep, Restart, Shutdown)
 - `0x37` — `UnlockWithOsPassword` (Windows OS lock screen auto-unlock with hardware scan code keystroke injection)
 
----
+#### 3. WebBridge Browser Access (HTTPS / WSS Port 8443)
+- **HTTP GET `/` & `/index.html`**: Serves the touch-first responsive HTML5/JS single-page web client.
+- **HTTP GET `/health`**: Returns JSON service health and port configuration.
+- **HTTP GET `/cert`**: Downloads self-signed TLS certificate public authority (`.crt`) for mobile browser trust setup.
+- **WebSocket `/ws`**: High-performance bi-directional binary frame streaming (JPEG) and JSON input control protocol (`auth`, `mouse`, `scroll`, `key`, `special`).
 
 ## Quick Start
 
@@ -123,7 +142,7 @@ To compile and package the standalone Windows installer:
 ```
 
 The compiled installer is output to:
-`dist/RemoteLAN_Setup_v1.3.4.exe`
+`dist/RemoteLAN_Setup_v1.4.0.exe`
 
 - **Fully Self-Contained (.NET 8 Runtime Included)**: Bundles the complete .NET 8 desktop runtime and CoreCLR libraries directly inside the installer — no separate .NET installation or download required.
 - **Clean Upgrades**: Automatically terminates running processes, cleans old version binaries, and preserves user credentials in `%ProgramData%\RemoteLAN`.

@@ -1,5 +1,32 @@
 # Release Notes
 
+## [1.4.0] - 2026-09-24
+
+RemoteLAN **v1.4.0** introduces **RemoteLAN WebBridge** — instant browser-based remote control of this PC from any smartphone, tablet, or browser over LAN with zero client app installations, zero-typing QR code pairing, direct mobile touchscreen and full-screen trackpad engines, modern Light Mode dropdown controls, and chat window lifecycle hardening.
+
+### 🌐 RemoteLAN WebBridge (Browser Remote Access)
+- **Zero-Client Browser Remote Control**: Access and control the host PC directly from Safari (iOS), Chrome (Android), iPadOS, macOS, or secondary desktop browsers over HTTPS and WebSockets (port 8443) without installing any client software.
+- **Zero-Typing QR Code Instant Access**: Launch `📱 Connect Phone (QR)` from the main window, system tray, or Settings to display a crisp, scannable QR code with automatic Wi-Fi/Ethernet interface detection. Pointing your phone's camera connects immediately in the browser.
+- **Direct Interactive Touchscreen Mode (Default)**: Intuitive direct interaction where tapping any desktop element clicks it immediately, double-tapping opens files or apps, long-pressing (550ms) triggers right-click with haptic feedback vibration, and two-finger pinching zooms in and out.
+- **Full-Screen Mobile Trackpad Mode**: Optional mode where the entire mobile display (including top and bottom letterbox bars) functions as a laptop trackpad with relative delta steering, tap-to-click, and quick thumb action buttons (`[ 🖱️ Left Click ]`, `[ ✊ Hold Drag ]`, `[ Right Click ]`).
+- **Smooth Pinch-to-Zoom & Pan**: Smooth two-finger pinch-to-zoom (1.0x to 4.0x) with panning and a floating one-tap zoom reset badge (`1.8x ✕`).
+- **Anti-Crop Visual Viewport Keyboard Adaptation**: Seamlessly detects mobile software keyboards using `window.visualViewport`, dynamically shrinking and shifting the desktop canvas above the keyboard so taskbars, Start menus, and active text inputs are never cropped.
+- **Unicode Keystroke Injection & Special Keys**: Direct mobile keyboard character input via Unicode injection, plus floating drawer keys (`Ctrl+Alt+Del` with lock screen wake and Task Manager launch, `Esc`, `Tab`, `Win`, `Enter`, `Backspace`, `Arrow keys`).
+- **Zero-Blackscreen Engine**: Throttled touch events and thread-safe persistent capture buffers preventing black screens during active mobile touch interaction.
+- **Apple Safari TLS & SAN Compliance**: Automatically generates and manages self-signed X.509 certificates with Subject Alternative Names (SAN) for all local IPv4 addresses and 365-day validity limits (complying strictly with Apple iOS 13+ / macOS 10.15+ TLS requirements), plus one-tap `/cert` profile download.
+- **Automated Windows Firewall Management**: Automatically checks and configures inbound TCP firewall rules for port 8443 across all network profiles (Domain, Private, and Public Wi-Fi) with one-click in-app UAC elevation.
+
+### 🎨 Modern UI & Usability Enhancements
+- **Application-Wide Modern Light Mode Dropdowns**: Completely refreshed ComboBox styling across the main window, Settings, and modal dialogs with rounded borders (`CornerRadius="6"`), smooth slate hover animations, expanded column widths, and zero text truncation.
+- **Host Chat Window Lifecycle Hardening**:
+  - Added dedicated Close (`✕`) button to `HostChatWindow` title bar for instant manual dismissal.
+  - Guaranteed automatic chat window closure on session disconnect by binding directly to both `ClientDisconnected` and `ChatSessionEnded`.
+  - Added explicit window closure in `MainWindow` upon client disconnect, host disconnect button click, and application exit.
+  - Suppressed chat widget opening for WebBridge sessions (which do not use the in-app chat protocol).
+
+### 🧪 Automated Verification
+- Expanded automated unit, discovery, security, power, and WebBridge test suite to **125 passing tests**.
+
 ## [1.3.4] - 2026-09-23
 
 RemoteLAN **v1.3.4** eliminates 100% HDD active time disk thrashing and delivers RustDesk-inspired headless background server execution for seamless remote access to the Windows sign-in screen without prior user login.

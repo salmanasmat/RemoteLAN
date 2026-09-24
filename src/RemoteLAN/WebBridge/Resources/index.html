@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>RemoteLAN WebBridge</title>
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --danger: #EF4444;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #090D16;
+      font-family: var(--font);
+      touch-action: none;
+    }
+
+    /* Outer viewport container covering 100% of the screen */
+    #viewport-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #090D16;
+      overflow: hidden;
+      touch-action: none;
+      transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Transform wrapper for pinch-to-zoom and pan */
+    #canvas-wrapper {
+      position: relative;
+      display: inline-block;
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    #screen-canvas {
+      display: block;
+      touch-action: none;
+      background-color: #000000;
+      box-shadow: 0 0 28px rgba(0, 0, 0, 0.65);
+      cursor: none; /* Hide default cursor; virtual cursor renders over it */
+    }
+
+    /* Classic, crisp Windows arrow mouse pointer */
+    #virtual-cursor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 22px;
+      height: 26px;
+      pointer-events: none;
+      z-index: 55;
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.75));
+      will-change: transform;
+      display: none;
+      transform: translate3d(-9999px, -9999px, 0);
+    }
+
+    #virtual-cursor svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      transition: transform 0.08s ease;
+    }
+
+    #virtual-cursor.clicking svg {
+      transform: scale(0.85);
+    }
+
+    #virtual-cursor.dragging svg {
+      filter: drop-shadow(0 0 4px #2563EB);
+    }
+
+    /* Click ripple effect */
+    #cursor-click-ripple {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 24px;
+      height: 24px;
+      margin-left: -12px;
+      margin-top: -12px;
+      border: 2px solid var(--primary);
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.3);
+      transition: transform 0.35s ease-out, opacity 0.35s ease;
+    }
+
+    #cursor-click-ripple.pulse {
+      opacity: 1;
+      transform: scale(1.6);
+      border-color: #60A5FA;
+    }
+
+    /* Touch mode long-press circle */
+    #touch-indicator {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      margin-left: -24px;
+      margin-top: -24px;
+      border: 3px solid var(--primary);
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.4);
+      transition: transform 0.4s ease-out, opacity 0.2s ease;
+      z-index: 50;
+    }
+
+    #touch-indicator.active {
+      opacity: 1;
+      transform: scale(1.25);
+      border-color: var(--danger);
+    }
+
+    /* Status Pill */
+    #status-pill {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 40;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+    .status-dot.connected { background: var(--success); }
+    .status-dot.disconnected { background: var(--danger); }
+
+    /* Zoom Badge & Reset Button */
+    #zoom-badge {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #FFFFFF;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      z-index: 40;
+      cursor: pointer;
+    }
+
+    #zoom-badge button {
+      background: rgba(255, 255, 255, 0.25);
+      border: none;
+      color: #FFFFFF;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 10px;
+      line-height: 18px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    /* Toast Notification Pill */
+    #toast-pill {
+      position: fixed;
+      top: 48px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #FFFFFF;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 80;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      white-space: nowrap;
+    }
+
+    #toast-pill.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Trackpad Thumb Helper Bar (for bottom empty space in Trackpad mode) */
+    #trackpad-bar {
+      position: fixed;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      padding: 6px 10px;
+      z-index: 59;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      transition: bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .tp-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #FFFFFF;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .tp-btn:active, .tp-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      transform: scale(0.96);
+    }
+
+    /* Floating Toolbar */
+    #toolbar {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+      z-index: 60;
+      transition: bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+    }
+
+    .tool-btn {
+      background: #F1F5F9;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .tool-btn:active, .tool-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .tool-btn.danger {
+      color: var(--danger);
+    }
+    .tool-btn.danger:active {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Special keys menu drawer */
+    #keys-drawer {
+      position: fixed;
+      bottom: 74px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px;
+      display: none;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      max-width: 90vw;
+      width: 320px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      z-index: 65;
+      transition: bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #keys-drawer.open {
+      display: flex;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .key-cap {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-bottom: 2px solid #CBD5E1;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      min-width: 48px;
+      text-align: center;
+      transition: background 0.1s;
+    }
+
+    .key-cap:active {
+      transform: translateY(1px);
+      border-bottom-width: 1px;
+      background: #E2E8F0;
+    }
+
+    .key-cap.cad {
+      background: #FEE2E2;
+      border-color: #FCA5A5;
+      color: #B91C1C;
+    }
+
+    /* Auth Modal Overlay */
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .auth-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .auth-icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 12px;
+      background: #EFF6FF;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    .auth-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .auth-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .pin-input {
+      width: 100%;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-align: center;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 12px;
+      -webkit-user-select: auto;
+      user-select: auto;
+    }
+
+    .pin-input:focus {
+      border-color: var(--primary);
+      background: #FFFFFF;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:active {
+      background: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      background: #94A3B8;
+      cursor: not-allowed;
+    }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Fixed hidden virtual keyboard bridge (positioned inside visible area so iOS Safari never scrolls) */
+    #keyboard-bridge {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+      pointer-events: none;
+      z-index: -1;
+      border: none;
+      background: transparent;
+      color: transparent;
+      -webkit-user-select: auto;
+      user-select: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Stream Viewport (Captures all touches on canvas and empty areas) -->
+  <div id="viewport-container">
+    <div id="canvas-wrapper">
+      <canvas id="screen-canvas" width="1280" height="720"></canvas>
+      <!-- Visual cursor rendered directly over the remote desktop -->
+      <div id="virtual-cursor">
+        <svg viewBox="0 0 15 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 0.5 0.5 L 0.5 17.5 L 4.8 13.5 L 7.8 20 L 10 19 L 7 12.5 L 12.5 12.5 Z" 
+                fill="#FFFFFF" 
+                stroke="#0F172A" 
+                stroke-width="1.3" 
+                stroke-linejoin="round"/>
+        </svg>
+        <div id="cursor-click-ripple"></div>
+      </div>
+    </div>
+    <div id="touch-indicator"></div>
+  </div>
+
+  <!-- Status Indicator -->
+  <div id="status-pill">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+    <span id="fps-counter" style="margin-left: 4px; font-weight: normal; opacity: 0.8;">0 FPS</span>
+  </div>
+
+  <!-- Zoom Level Badge & Reset Button -->
+  <div id="zoom-badge">
+    <span id="zoom-text">1.0x</span>
+    <button id="btn-reset-zoom" title="Reset Zoom">✕</button>
+  </div>
+
+  <!-- Toast Notification Pill -->
+  <div id="toast-pill"></div>
+
+  <!-- Trackpad Helper Bar (for comfortable thumb control in Trackpad mode) -->
+  <div id="trackpad-bar">
+    <button class="tp-btn" id="tp-btn-left">🖱️ Left Click</button>
+    <button class="tp-btn" id="tp-btn-drag" title="Hold Left Mouse to Drag">✊ Drag</button>
+    <button class="tp-btn" id="tp-btn-right">Right Click</button>
+  </div>
+
+  <!-- Keys Drawer -->
+  <div id="keys-drawer">
+    <button class="key-cap" data-key="Escape">Esc</button>
+    <button class="key-cap" data-key="Tab">Tab</button>
+    <button class="key-cap" data-key="Meta">Win</button>
+    <button class="key-cap" data-key="Enter">Enter</button>
+    <button class="key-cap" data-key="Backspace">⌫</button>
+    <button class="key-cap" data-key="Space">Space</button>
+    <button class="key-cap" data-key="ArrowUp">↑</button>
+    <button class="key-cap" data-key="ArrowDown">↓</button>
+    <button class="key-cap" data-key="ArrowLeft">←</button>
+    <button class="key-cap" data-key="ArrowRight">→</button>
+    <button class="key-cap cad" id="btn-cad">Ctrl+Alt+Del</button>
+  </div>
+
+  <!-- Bottom Floating Toolbar -->
+  <div id="toolbar">
+    <button class="tool-btn" id="btn-toggle-keys">⌨ Keys</button>
+    <button class="tool-btn" id="btn-virtual-kb">Type</button>
+    <button class="tool-btn" id="btn-mode">Mode: Touch</button>
+    <button class="tool-btn" id="btn-fullscreen">⛶</button>
+    <button class="tool-btn danger" id="btn-disconnect">✕</button>
+  </div>
+
+  <!-- Hidden text input for summoning mobile OS keyboard -->
+  <input type="text" id="keyboard-bridge" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+  <!-- Authentication Overlay -->
+  <div id="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon">🔒</div>
+      <h2>RemoteLAN WebBridge</h2>
+      <p id="auth-subtitle">Enter Host Access PIN or Unattended Password</p>
+      <input type="password" id="pin-input" class="pin-input" placeholder="PIN" maxlength="32" autofocus>
+      <button class="btn" id="btn-auth">Connect</button>
+      <div class="error-msg" id="auth-error"></div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // State
+      let ws = null;
+      let hostWidth = 1920;
+      let hostHeight = 1080;
+      let isAuthenticated = false;
+      let inputMode = 'touch'; // Default to direct touch on mobile for intuitive touchscreen PC use
+      let frameCount = 0;
+      let lastFpsTime = performance.now();
+
+      // Normalized cursor coordinates (0.0 to 1.0)
+      let cursorNormX = 0.5;
+      let cursorNormY = 0.5;
+      let isDragging = false;
+
+      // Pinch-to-Zoom & Pan state
+      let currentZoom = 1.0;
+      let currentPanX = 0;
+      let currentPanY = 0;
+      let initialPinchDist = 0;
+      let initialPinchMidX = 0;
+      let initialPinchMidY = 0;
+      let baseZoom = 1.0;
+      let basePanX = 0;
+      let basePanY = 0;
+      let isPinching = false;
+
+      // Touch & Trackpad gesture tracking
+      let lastTouchX = 0;
+      let lastTouchY = 0;
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+      let touchMoved = false;
+      let touchTimer = null;
+      let lastScrollY = 0;
+      let isTouchDevice = false;
+      let lastMoveSendTime = 0;
+      let lastTapTime = 0;
+
+      // DOM Elements
+      const viewportContainer = document.getElementById('viewport-container');
+      const canvasWrapper = document.getElementById('canvas-wrapper');
+      const canvas = document.getElementById('screen-canvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const virtualCursor = document.getElementById('virtual-cursor');
+      const cursorClickRipple = document.getElementById('cursor-click-ripple');
+      const touchIndicator = document.getElementById('touch-indicator');
+      const trackpadBar = document.getElementById('trackpad-bar');
+      const tpBtnLeft = document.getElementById('tp-btn-left');
+      const tpBtnDrag = document.getElementById('tp-btn-drag');
+      const tpBtnRight = document.getElementById('tp-btn-right');
+      const zoomBadge = document.getElementById('zoom-badge');
+      const zoomText = document.getElementById('zoom-text');
+      const btnResetZoom = document.getElementById('btn-reset-zoom');
+      const toastPill = document.getElementById('toast-pill');
+      const authOverlay = document.getElementById('auth-overlay');
+      const pinInput = document.getElementById('pin-input');
+      const btnAuth = document.getElementById('btn-auth');
+      const authError = document.getElementById('auth-error');
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+      const fpsCounter = document.getElementById('fps-counter');
+      const toolbar = document.getElementById('toolbar');
+      const keysDrawer = document.getElementById('keys-drawer');
+      const btnToggleKeys = document.getElementById('btn-toggle-keys');
+      const btnVirtualKb = document.getElementById('btn-virtual-kb');
+      const btnMode = document.getElementById('btn-mode');
+      const btnFullscreen = document.getElementById('btn-fullscreen');
+      const btnDisconnect = document.getElementById('btn-disconnect');
+      const btnCad = document.getElementById('btn-cad');
+      const keyboardBridge = document.getElementById('keyboard-bridge');
+
+      // Initialize saved PIN
+      const savedPin = localStorage.getItem('remotelan_web_pin');
+      if (savedPin) {
+        pinInput.value = savedPin;
+      }
+
+      // Fast-tap helper to guarantee 100% reliable button responses on iOS Safari and mobile browsers
+      function addTapListener(element, callback) {
+        if (!element) return;
+        let touchFired = false;
+        element.addEventListener('touchend', function(e) {
+          touchFired = true;
+          e.preventDefault();
+          e.stopPropagation();
+          try { if (navigator.vibrate) navigator.vibrate(15); } catch {}
+          callback(e);
+        }, { passive: false });
+
+        element.addEventListener('click', function(e) {
+          if (touchFired) {
+            touchFired = false;
+            return;
+          }
+          callback(e);
+        });
+      }
+
+      function showToast(text, durationMs = 2400) {
+        toastPill.textContent = text;
+        toastPill.classList.add('visible');
+        clearTimeout(toastPill._timer);
+        toastPill._timer = setTimeout(() => {
+          toastPill.classList.remove('visible');
+        }, durationMs);
+      }
+
+      function updateStatus(text, state) {
+        statusText.textContent = text;
+        statusDot.className = 'status-dot ' + (state || '');
+      }
+
+      // Update Cursor position on screen (instant 0ms response)
+      function updateVirtualCursor(normX, normY) {
+        cursorNormX = Math.max(0, Math.min(1, normX));
+        cursorNormY = Math.max(0, Math.min(1, normY));
+
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        if (width <= 0 || height <= 0) return;
+
+        const pixelX = cursorNormX * width;
+        const pixelY = cursorNormY * height;
+
+        virtualCursor.style.transform = `translate3d(${pixelX}px, ${pixelY}px, 0)`;
+        virtualCursor.style.display = 'block';
+      }
+
+      function triggerClickRipple() {
+        virtualCursor.classList.add('clicking');
+        cursorClickRipple.classList.remove('pulse');
+        void cursorClickRipple.offsetWidth; // Trigger reflow
+        cursorClickRipple.classList.add('pulse');
+        setTimeout(() => {
+          virtualCursor.classList.remove('clicking');
+        }, 140);
+      }
+
+      // Apply zoom & pan transform to canvas
+      function applyCanvasTransform() {
+        if (currentZoom <= 1.02) {
+          currentZoom = 1.0;
+          currentPanX = 0;
+          currentPanY = 0;
+          canvasWrapper.style.transform = 'none';
+          zoomBadge.style.display = 'none';
+        } else {
+          canvasWrapper.style.transform = `translate3d(${currentPanX}px, ${currentPanY}px, 0) scale(${currentZoom})`;
+          zoomText.textContent = currentZoom.toFixed(1) + 'x';
+          zoomBadge.style.display = 'flex';
+        }
+        updateVirtualCursor(cursorNormX, cursorNormY);
+      }
+
+      function resetZoom() {
+        currentZoom = 1.0;
+        currentPanX = 0;
+        currentPanY = 0;
+        applyCanvasTransform();
+        showToast('Zoom Reset: 1.0x');
+      }
+
+      addTapListener(btnResetZoom, resetZoom);
+      addTapListener(zoomBadge, resetZoom);
+
+      // Fit canvas inside available viewport
+      function resizeCanvasToDisplay() {
+        const containerWidth = viewportContainer.clientWidth;
+        const containerHeight = viewportContainer.clientHeight;
+
+        if (containerWidth <= 0 || containerHeight <= 0) return;
+
+        const scale = Math.min(containerWidth / hostWidth, containerHeight / hostHeight);
+        const w = Math.round(hostWidth * scale);
+        const h = Math.round(hostHeight * scale);
+
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+
+        applyCanvasTransform();
+      }
+
+      window.addEventListener('resize', resizeCanvasToDisplay);
+      window.addEventListener('orientationchange', () => setTimeout(resizeCanvasToDisplay, 200));
+
+      // Handle on-screen keyboard shift (visualViewport API handles iOS Safari & Android keyboard)
+      function handleVisualViewportChange() {
+        if (!window.visualViewport) return;
+        const vv = window.visualViewport;
+        const viewportHeight = vv.height;
+        const keyboardHeight = window.innerHeight - viewportHeight;
+
+        if (keyboardHeight > 100) {
+          // Virtual keyboard is open! Shrink container height and shift above keyboard
+          viewportContainer.style.height = viewportHeight + 'px';
+          viewportContainer.style.transform = `translateY(${vv.offsetTop}px)`;
+          toolbar.style.bottom = (keyboardHeight + 12) + 'px';
+          trackpadBar.style.bottom = (keyboardHeight + 64) + 'px';
+          keysDrawer.style.bottom = (keyboardHeight + 70) + 'px';
+        } else {
+          // Virtual keyboard is closed
+          viewportContainer.style.height = '100dvh';
+          viewportContainer.style.transform = 'none';
+          toolbar.style.bottom = '16px';
+          trackpadBar.style.bottom = '70px';
+          keysDrawer.style.bottom = '74px';
+        }
+
+        resizeCanvasToDisplay();
+      }
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+        window.visualViewport.addEventListener('scroll', handleVisualViewportChange);
+      }
+
+      // Setup WebSocket Connection
+      function connectWebSocket() {
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+          return;
+        }
+
+        updateStatus('Connecting...', '');
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = protocol + '//' + window.location.host + '/ws';
+
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'blob';
+
+        ws.onopen = function() {
+          updateStatus('Connected (Authenticating)', 'connected');
+          if (pinInput.value.trim().length > 0) {
+            submitAuth();
+          } else {
+            authOverlay.style.display = 'flex';
+          }
+        };
+
+        ws.onmessage = async function(event) {
+          if (event.data instanceof Blob) {
+            // Binary message = JPEG frame
+            renderFrame(event.data);
+          } else {
+            // Text JSON message
+            handleControlMessage(event.data);
+          }
+        };
+
+        ws.onclose = function() {
+          updateStatus('Disconnected', 'disconnected');
+          isAuthenticated = false;
+          authOverlay.style.display = 'flex';
+          virtualCursor.style.display = 'none';
+          setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = function() {
+          updateStatus('Error', 'disconnected');
+        };
+      }
+
+      async function renderFrame(blob) {
+        let imageBitmap = null;
+        try {
+          imageBitmap = await createImageBitmap(blob);
+          if (canvas.width !== imageBitmap.width || canvas.height !== imageBitmap.height) {
+            canvas.width = imageBitmap.width;
+            canvas.height = imageBitmap.height;
+            hostWidth = imageBitmap.width;
+            hostHeight = imageBitmap.height;
+            resizeCanvasToDisplay();
+          }
+          ctx.drawImage(imageBitmap, 0, 0);
+
+          frameCount++;
+          const now = performance.now();
+          if (now - lastFpsTime >= 1000) {
+            const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+            fpsCounter.textContent = fps + ' FPS';
+            frameCount = 0;
+            lastFpsTime = now;
+          }
+        } catch (e) {
+          console.error('Frame render failed', e);
+        } finally {
+          if (imageBitmap) {
+            try { imageBitmap.close(); } catch {}
+          }
+        }
+      }
+
+      function handleControlMessage(jsonText) {
+        try {
+          const msg = JSON.parse(jsonText);
+          if (msg.type === 'auth_ok') {
+            isAuthenticated = true;
+            authOverlay.style.display = 'none';
+            authError.style.display = 'none';
+            localStorage.setItem('remotelan_web_pin', pinInput.value.trim());
+            updateStatus('Active', 'connected');
+            if (msg.screenWidth && msg.screenHeight) {
+              hostWidth = msg.screenWidth;
+              hostHeight = msg.screenHeight;
+              resizeCanvasToDisplay();
+            }
+            if (msg.cursorX !== undefined && msg.cursorY !== undefined) {
+              cursorNormX = msg.cursorX;
+              cursorNormY = msg.cursorY;
+            }
+            updateVirtualCursor(cursorNormX, cursorNormY);
+            updateModeDisplay();
+          } else if (msg.type === 'cursor') {
+            // Host PC mouse moved physically; update virtual cursor
+            if (msg.x !== undefined && msg.y !== undefined) {
+              updateVirtualCursor(msg.x, msg.y);
+            }
+          } else if (msg.type === 'auth_failed') {
+            authError.textContent = msg.reason || 'Invalid PIN or Password';
+            authError.style.display = 'block';
+            authOverlay.style.display = 'flex';
+            btnAuth.disabled = false;
+            updateStatus('Auth Failed', 'disconnected');
+          } else if (msg.type === 'status') {
+            updateStatus(msg.message, 'connected');
+          }
+        } catch (e) {
+          console.error('JSON parse error', e);
+        }
+      }
+
+      function sendJson(obj) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(obj));
+        }
+      }
+
+      function submitAuth() {
+        const pin = pinInput.value.trim();
+        if (!pin) return;
+        btnAuth.disabled = true;
+        authError.style.display = 'none';
+        sendJson({ type: 'auth', pin: pin });
+      }
+
+      addTapListener(btnAuth, submitAuth);
+      pinInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAuth();
+      });
+
+      // Coordinate normalization considering canvas transform/zoom
+      function getNormalizedCoords(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return { inBounds: false, x: 0, y: 0 };
+
+        const relX = clientX - rect.left;
+        const relY = clientY - rect.top;
+
+        if (relX < 0 || relX > rect.width || relY < 0 || relY > rect.height) {
+          return { inBounds: false, x: Math.max(0, Math.min(1, relX / rect.width)), y: Math.max(0, Math.min(1, relY / rect.height)) };
+        }
+
+        const normX = Math.max(0, Math.min(1, relX / rect.width));
+        const normY = Math.max(0, Math.min(1, relY / rect.height));
+        return { inBounds: true, x: normX, y: normY };
+      }
+
+      // =======================================================================
+      // Touch & Trackpad Engine (Listening on #viewport-container for full-screen trackpad)
+      // =======================================================================
+
+      viewportContainer.addEventListener('touchstart', function(e) {
+        if (!isAuthenticated) return;
+        isTouchDevice = true;
+        e.preventDefault();
+
+        if (e.touches.length === 1) {
+          isPinching = false;
+          const t = e.touches[0];
+          touchStartX = t.clientX;
+          touchStartY = t.clientY;
+          lastTouchX = t.clientX;
+          lastTouchY = t.clientY;
+          touchStartTime = performance.now();
+          touchMoved = false;
+
+          clearTimeout(touchTimer);
+
+          if (inputMode === 'touch') {
+            const coords = getNormalizedCoords(t.clientX, t.clientY);
+            if (coords.inBounds) {
+              updateVirtualCursor(coords.x, coords.y);
+              sendJson({ type: 'mouse', action: 'move', x: coords.x, y: coords.y });
+              touchIndicator.style.left = t.clientX + 'px';
+              touchIndicator.style.top = t.clientY + 'px';
+              touchIndicator.classList.add('active');
+
+              // 550ms Long press for Right Click in Touch Mode
+              touchTimer = setTimeout(() => {
+                touchIndicator.classList.remove('active');
+                triggerClickRipple();
+                sendJson({ type: 'mouse', action: 'move', x: coords.x, y: coords.y });
+                sendJson({ type: 'mouse', action: 'down', button: 'right', x: coords.x, y: coords.y });
+                setTimeout(() => {
+                  sendJson({ type: 'mouse', action: 'up', button: 'right', x: coords.x, y: coords.y });
+                }, 50);
+                touchMoved = true;
+                try { if (navigator.vibrate) navigator.vibrate(30); } catch {}
+              }, 550);
+            }
+          } else {
+            // Trackpad Mode: Long press anywhere for Right Click at pointer position
+            touchTimer = setTimeout(() => {
+              triggerClickRipple();
+              sendJson({ type: 'mouse', action: 'down', button: 'right', x: cursorNormX, y: cursorNormY });
+              setTimeout(() => {
+                sendJson({ type: 'mouse', action: 'up', button: 'right', x: cursorNormX, y: cursorNormY });
+              }, 50);
+              touchMoved = true;
+              try { if (navigator.vibrate) navigator.vibrate(30); } catch {}
+            }, 550);
+          }
+        } else if (e.touches.length === 2) {
+          // Two-finger gesture: Pinch zoom or scroll
+          clearTimeout(touchTimer);
+          touchIndicator.classList.remove('active');
+          isPinching = true;
+
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          initialPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          initialPinchMidX = (t1.clientX + t2.clientX) / 2;
+          initialPinchMidY = (t1.clientY + t2.clientY) / 2;
+          baseZoom = currentZoom;
+          basePanX = currentPanX;
+          basePanY = currentPanY;
+          lastScrollY = initialPinchMidY;
+        }
+      }, { passive: false });
+
+      viewportContainer.addEventListener('touchmove', function(e) {
+        if (!isAuthenticated) return;
+        isTouchDevice = true;
+        e.preventDefault();
+
+        if (e.touches.length === 1 && !isPinching) {
+          const t = e.touches[0];
+          const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY);
+          if (dist > 8) {
+            clearTimeout(touchTimer);
+            touchIndicator.classList.remove('active');
+            touchMoved = true;
+          }
+
+          if (inputMode === 'trackpad') {
+            // Relative delta steering across 100% of the screen (empty bars + canvas)
+            const deltaX = t.clientX - lastTouchX;
+            const deltaY = t.clientY - lastTouchY;
+            lastTouchX = t.clientX;
+            lastTouchY = t.clientY;
+
+            const rect = canvas.getBoundingClientRect();
+            const trackpadSpeed = 1.15;
+            cursorNormX = Math.max(0, Math.min(1, cursorNormX + (deltaX * trackpadSpeed) / rect.width));
+            cursorNormY = Math.max(0, Math.min(1, cursorNormY + (deltaY * trackpadSpeed) / rect.height));
+
+            updateVirtualCursor(cursorNormX, cursorNormY);
+
+            const now = performance.now();
+            if (now - lastMoveSendTime >= 20) {
+              lastMoveSendTime = now;
+              sendJson({ type: 'mouse', action: 'move', x: cursorNormX, y: cursorNormY });
+            }
+          } else {
+            // Touch Mode: direct touch tracking on canvas, or nudge if in empty area
+            const coords = getNormalizedCoords(t.clientX, t.clientY);
+            if (coords.inBounds) {
+              updateVirtualCursor(coords.x, coords.y);
+              const now = performance.now();
+              if (now - lastMoveSendTime >= 20) {
+                lastMoveSendTime = now;
+                sendJson({ type: 'mouse', action: 'move', x: coords.x, y: coords.y });
+              }
+            } else {
+              // Empty area nudge in Touch Mode
+              const deltaX = t.clientX - lastTouchX;
+              const deltaY = t.clientY - lastTouchY;
+              lastTouchX = t.clientX;
+              lastTouchY = t.clientY;
+              const rect = canvas.getBoundingClientRect();
+              cursorNormX = Math.max(0, Math.min(1, cursorNormX + (deltaX * 1.1) / rect.width));
+              cursorNormY = Math.max(0, Math.min(1, cursorNormY + (deltaY * 1.1) / rect.height));
+              updateVirtualCursor(cursorNormX, cursorNormY);
+            }
+          }
+        } else if (e.touches.length === 2) {
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          const currentMidX = (t1.clientX + t2.clientX) / 2;
+          const currentMidY = (t1.clientY + t2.clientY) / 2;
+
+          // If pinch distance changed significantly (> 12px), zoom!
+          if (Math.abs(currentDist - initialPinchDist) > 12) {
+            const zoomRatio = currentDist / initialPinchDist;
+            currentZoom = Math.max(1.0, Math.min(4.0, baseZoom * zoomRatio));
+            currentPanX = basePanX + (currentMidX - initialPinchMidX);
+            currentPanY = basePanY + (currentMidY - initialPinchMidY);
+            applyCanvasTransform();
+          } else if (currentZoom <= 1.05) {
+            // 2-finger scroll when not zoomed in
+            const deltaY = lastScrollY - currentMidY;
+            if (Math.abs(deltaY) > 4) {
+              sendJson({ type: 'scroll', deltaY: Math.round(deltaY * 3.5) });
+              lastScrollY = currentMidY;
+            }
+          } else {
+            // Pan around when zoomed in
+            currentPanX = basePanX + (currentMidX - initialPinchMidX);
+            currentPanY = basePanY + (currentMidY - initialPinchMidY);
+            applyCanvasTransform();
+          }
+        }
+      }, { passive: false });
+
+      viewportContainer.addEventListener('touchend', function(e) {
+        if (!isAuthenticated) return;
+        isTouchDevice = true;
+        e.preventDefault();
+        clearTimeout(touchTimer);
+        touchIndicator.classList.remove('active');
+
+        if (e.touches.length === 0) {
+          if (!touchMoved && (performance.now() - touchStartTime < 450)) {
+            // Tap registered!
+            const now = performance.now();
+            const isDoubleTap = (now - lastTapTime < 320);
+            lastTapTime = now;
+
+            triggerClickRipple();
+
+            if (inputMode === 'trackpad') {
+              // Click at current virtual cursor position
+              sendJson({ type: 'mouse', action: 'down', button: 'left', x: cursorNormX, y: cursorNormY });
+              setTimeout(() => {
+                sendJson({ type: 'mouse', action: 'up', button: 'left', x: cursorNormX, y: cursorNormY });
+                if (isDoubleTap) {
+                  // Perform second click for double-tap
+                  setTimeout(() => {
+                    sendJson({ type: 'mouse', action: 'down', button: 'left', x: cursorNormX, y: cursorNormY });
+                    setTimeout(() => {
+                      sendJson({ type: 'mouse', action: 'up', button: 'left', x: cursorNormX, y: cursorNormY });
+                    }, 40);
+                  }, 60);
+                }
+              }, 40);
+            } else {
+              // Touch Mode: click at touch location if on canvas
+              const t = e.changedTouches[0];
+              const coords = getNormalizedCoords(t.clientX, t.clientY);
+              if (coords.inBounds) {
+                updateVirtualCursor(coords.x, coords.y);
+                sendJson({ type: 'mouse', action: 'move', x: coords.x, y: coords.y });
+                sendJson({ type: 'mouse', action: 'down', button: 'left', x: coords.x, y: coords.y });
+                setTimeout(() => {
+                  sendJson({ type: 'mouse', action: 'up', button: 'left', x: coords.x, y: coords.y });
+                  if (isDoubleTap) {
+                    setTimeout(() => {
+                      sendJson({ type: 'mouse', action: 'down', button: 'left', x: coords.x, y: coords.y });
+                      setTimeout(() => {
+                        sendJson({ type: 'mouse', action: 'up', button: 'left', x: coords.x, y: coords.y });
+                      }, 40);
+                    }, 60);
+                  }
+                }, 40);
+              }
+            }
+          }
+          isPinching = false;
+        } else if (e.touches.length === 1 && isPinching) {
+          isPinching = false;
+        }
+      }, { passive: false });
+
+      // Trackpad Helper Bar Buttons
+      addTapListener(tpBtnLeft, () => {
+        triggerClickRipple();
+        sendJson({ type: 'mouse', action: 'down', button: 'left', x: cursorNormX, y: cursorNormY });
+        setTimeout(() => {
+          sendJson({ type: 'mouse', action: 'up', button: 'left', x: cursorNormX, y: cursorNormY });
+        }, 40);
+      });
+
+      addTapListener(tpBtnRight, () => {
+        triggerClickRipple();
+        sendJson({ type: 'mouse', action: 'down', button: 'right', x: cursorNormX, y: cursorNormY });
+        setTimeout(() => {
+          sendJson({ type: 'mouse', action: 'up', button: 'right', x: cursorNormX, y: cursorNormY });
+        }, 40);
+      });
+
+      addTapListener(tpBtnDrag, () => {
+        isDragging = !isDragging;
+        tpBtnDrag.classList.toggle('active', isDragging);
+        virtualCursor.classList.toggle('dragging', isDragging);
+        sendJson({ type: 'mouse', action: isDragging ? 'down' : 'up', button: 'left', x: cursorNormX, y: cursorNormY });
+        showToast(isDragging ? '✊ Drag Active: Holding Left Mouse' : 'Released Mouse Drag');
+      });
+
+      // Desktop Mouse Fallback (only active if not a touch interaction)
+      canvas.addEventListener('mousedown', function(e) {
+        if (!isAuthenticated || isTouchDevice) return;
+        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        if (coords.inBounds) {
+          updateVirtualCursor(coords.x, coords.y);
+          const button = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
+          sendJson({ type: 'mouse', action: 'down', button: button, x: coords.x, y: coords.y });
+        }
+      });
+
+      canvas.addEventListener('mouseup', function(e) {
+        if (!isAuthenticated || isTouchDevice) return;
+        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        if (coords.inBounds) {
+          const button = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
+          sendJson({ type: 'mouse', action: 'up', button: button, x: coords.x, y: coords.y });
+        }
+      });
+
+      canvas.addEventListener('mousemove', function(e) {
+        if (!isAuthenticated || isTouchDevice) return;
+        const coords = getNormalizedCoords(e.clientX, e.clientY);
+        if (coords.inBounds) {
+          updateVirtualCursor(coords.x, coords.y);
+          sendJson({ type: 'mouse', action: 'move', x: coords.x, y: coords.y });
+        }
+      });
+
+      canvas.addEventListener('wheel', function(e) {
+        if (!isAuthenticated) return;
+        e.preventDefault();
+        sendJson({ type: 'scroll', deltaY: -Math.sign(e.deltaY) * 120 });
+      }, { passive: false });
+
+      viewportContainer.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      // Mode Switcher (Trackpad vs Direct Touch)
+      function updateModeDisplay() {
+        btnMode.textContent = 'Mode: ' + (inputMode === 'trackpad' ? 'Trackpad' : 'Touch');
+        btnMode.classList.toggle('active', inputMode === 'trackpad');
+        trackpadBar.style.display = (inputMode === 'trackpad') ? 'flex' : 'none';
+        virtualCursor.style.display = 'block';
+      }
+
+      addTapListener(btnMode, () => {
+        inputMode = inputMode === 'trackpad' ? 'touch' : 'trackpad';
+        updateModeDisplay();
+        showToast(inputMode === 'trackpad'
+          ? 'Trackpad Mode: Slide anywhere to steer pointer, tap to click'
+          : 'Touch Mode: Tap directly on screen, drag to move');
+      });
+
+      // Toolbar Controls
+      addTapListener(btnToggleKeys, () => {
+        keysDrawer.classList.toggle('open');
+        btnToggleKeys.classList.toggle('active', keysDrawer.classList.contains('open'));
+      });
+
+      addTapListener(btnVirtualKb, () => {
+        keyboardBridge.focus();
+        btnVirtualKb.classList.add('active');
+        setTimeout(() => btnVirtualKb.classList.remove('active'), 200);
+      });
+
+      // Mobile Virtual Keyboard Bridge Input
+      keyboardBridge.addEventListener('keydown', function(e) {
+        if (!isAuthenticated) return;
+        if (e.key === 'Backspace') {
+          sendJson({ type: 'special', command: 'key_press', key: 'Backspace' });
+        } else if (e.key === 'Enter') {
+          sendJson({ type: 'special', command: 'key_press', key: 'Enter' });
+        } else if (e.key === 'Tab') {
+          sendJson({ type: 'special', command: 'key_press', key: 'Tab' });
+        } else if (e.key && e.key.length === 1) {
+          sendJson({ type: 'key', action: 'char', char: e.key });
+        }
+      });
+
+      keyboardBridge.addEventListener('input', function(e) {
+        if (!isAuthenticated) return;
+        if (e.inputType === 'deleteContentBackward') {
+          sendJson({ type: 'special', command: 'key_press', key: 'Backspace' });
+        } else if (e.data) {
+          for (let i = 0; i < e.data.length; i++) {
+            sendJson({ type: 'key', action: 'char', char: e.data[i] });
+          }
+        }
+        keyboardBridge.value = '';
+      });
+
+      // Special key buttons in Keys drawer
+      document.querySelectorAll('.key-cap[data-key]').forEach(btn => {
+        addTapListener(btn, () => {
+          const key = btn.getAttribute('data-key');
+          sendJson({ type: 'special', command: 'key_press', key: key });
+          btn.style.transform = 'translateY(1px)';
+          setTimeout(() => btn.style.transform = 'none', 100);
+        });
+      });
+
+      // Ctrl+Alt+Del Button
+      addTapListener(btnCad, () => {
+        sendJson({ type: 'special', command: 'ctrl_alt_del' });
+        showToast('Sent Ctrl+Alt+Del / Task Manager');
+      });
+
+      // Fullscreen Handler (Cross-browser with iOS Safari scroll fallback)
+      function toggleFullscreen() {
+        const doc = document;
+        const elem = document.documentElement;
+        const isFs = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+
+        if (!isFs) {
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(() => {});
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+          } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+          } else {
+            // iOS Safari iPhone fallback: scroll to hide address bar
+            window.scrollTo(0, 1);
+            showToast('Tip: Add to Home Screen for borderless fullscreen');
+          }
+        } else {
+          if (doc.exitFullscreen) {
+            doc.exitFullscreen().catch(() => {});
+          } else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+          } else if (doc.mozCancelFullScreen) {
+            doc.mozCancelFullScreen();
+          } else if (doc.msExitFullscreen) {
+            doc.msExitFullscreen();
+          }
+        }
+      }
+
+      addTapListener(btnFullscreen, toggleFullscreen);
+
+      addTapListener(btnDisconnect, () => {
+        if (ws) ws.close();
+      });
+
+      // Initial layout and connection
+      updateModeDisplay();
+      connectWebSocket();
+    })();
+  </script>
+</body>
+</html>

@@ -8,7 +8,8 @@ We take the security of **RemoteLAN** seriously. This document outlines our secu
 
 | Version | Supported | Notes |
 | :--- | :---: | :--- |
-| **1.3.x** | 🟢 Yes | Active release branch (Current: v1.3.4) |
+| **1.4.x** | 🟢 Yes | Active release branch (Current: v1.4.0) |
+| **1.3.x** | 🔴 No | Superseded by v1.4.x |
 | **1.2.x** | 🔴 No | Superseded by v1.3.x |
 | **1.1.x** | 🔴 No | Superseded by v1.2.x |
 | **1.0.x** | 🔴 No | Superseded by v1.1.x |
@@ -22,7 +23,7 @@ If you discover a security vulnerability in RemoteLAN, please **do not open a pu
 Please include:
 - A description of the issue and potential impact.
 - Step-by-step reproduction steps or proof of concept.
-- Affected versions (e.g., v1.3.4).
+- Affected versions (e.g., v1.4.0).
 
 We will acknowledge receipt of your report within 48 hours, investigate the issue promptly, and release a patch in accordance with semantic versioning.
 
@@ -30,8 +31,8 @@ We will acknowledge receipt of your report within 48 hours, investigate the issu
 
 ## Security Audit Report (OWASP Standards)
 
-- **Audit Date**: September 2026 (Updated for v1.3.4 release)
-- **Audited Target**: RemoteLAN v1.3.4 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
+- **Audit Date**: September 2026 (Updated for v1.4.0 release)
+- **Audited Target**: RemoteLAN v1.4.0 (`src/RemoteLAN`, `src/RemoteLAN.Protocol`, `tests/RemoteLAN.Tests`)
 - **Scope**: Full repository security sweep (Secrets, Injection, Authentication/Authorization, Privilege Management, Supply Chain).
 
 ### Executive Summary

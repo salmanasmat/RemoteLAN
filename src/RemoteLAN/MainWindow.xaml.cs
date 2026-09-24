@@ -467,9 +467,9 @@ public partial class MainWindow : Window
             ActiveClientEndpointText.Text = endpoint;
             SetStatus($"Connected: viewer from {endpoint}", Color.FromRgb(59, 130, 246)); // Blue
 
-            if (!isLocked)
+            if (!isLocked && !endpoint.StartsWith("[WebBridge]", StringComparison.OrdinalIgnoreCase))
             {
-                // Launch the floating host chat widget
+                // Launch the floating host chat widget only for native desktop sessions that support chat
                 try
                 {
                     _hostChatWindow?.Close();
@@ -491,8 +491,11 @@ public partial class MainWindow : Window
         {
             ActiveClientCard.Visibility = Visibility.Collapsed;
             SetStatus("Ready to connect", Color.FromRgb(16, 185, 129)); // Green
-            // HostChatWindow closes itself via the ChatSessionEnded event;
-            // just clear the local reference so GC can reclaim it.
+            try
+            {
+                _hostChatWindow?.Close();
+            }
+            catch { }
             _hostChatWindow = null;
         });
     }
@@ -643,6 +646,12 @@ public partial class MainWindow : Window
 
     private void DisconnectIncomingClient_Click(object sender, RoutedEventArgs e)
     {
+        try
+        {
+            _hostChatWindow?.Close();
+        }
+        catch { }
+        _hostChatWindow = null;
         _server.DisconnectCurrentClient();
     }
 
@@ -1432,11 +1441,18 @@ public partial class MainWindow : Window
             openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
             openItem.Click += (s, e) => ShowAndActivate();
 
+            var connectPhoneItem = new WinForms.ToolStripMenuItem("📱 Connect Phone (QR)...");
+            connectPhoneItem.Click += (s, e) => Dispatcher.Invoke(() =>
+            {
+                ShowAndActivate();
+                ConnectPhone_Click(this, new RoutedEventArgs());
+            });
+
             var settingsItem = new WinForms.ToolStripMenuItem("Settings...");
             settingsItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(0));
 
             var aboutItem = new WinForms.ToolStripMenuItem("About RemoteLAN");
-            aboutItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(2));
+            aboutItem.Click += (s, e) => Dispatcher.Invoke(() => OpenSettingsWindow(3));
 
             var hostItem = new WinForms.ToolStripMenuItem($"Host: {Environment.MachineName}");
             hostItem.Enabled = false;
@@ -1445,6 +1461,7 @@ public partial class MainWindow : Window
             exitItem.Click += (s, e) => ExitApplication();
 
             contextMenu.Items.Add(openItem);
+            contextMenu.Items.Add(connectPhoneItem);
             contextMenu.Items.Add(settingsItem);
             contextMenu.Items.Add(aboutItem);
             contextMenu.Items.Add(new WinForms.ToolStripSeparator());
@@ -1469,6 +1486,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ConnectPhone_Click(object sender, RoutedEventArgs e)
+    {
+        var qrWin = new WebBridgeQrWindow(_settingsManager, _server.PinManager, _server, () => OpenSettingsWindow(1))
+        {
+            Owner = this
+        };
+        qrWin.ShowDialog();
+    }
+
     private void OpenSettings_Click(object sender, RoutedEventArgs e)
     {
         OpenSettingsWindow(0);
@@ -1476,7 +1502,7 @@ public partial class MainWindow : Window
 
     public void OpenSettingsWindow(int initialTab = 0)
     {
-        var settingsWin = new SettingsWindow(_settingsManager, _server.PinManager, initialTab)
+        var settingsWin = new SettingsWindow(_settingsManager, _server.PinManager, initialTab, _server)
         {
             Owner = this
         };
@@ -1632,6 +1658,12 @@ public partial class MainWindow : Window
         }
 
         _discoveryTimer.Stop();
+        try
+        {
+            _hostChatWindow?.Close();
+        }
+        catch { }
+        _hostChatWindow = null;
         _server.Dispose();
 
         System.Windows.Application.Current.Shutdown();
@@ -1647,6 +1679,12 @@ public partial class MainWindow : Window
         }
 
         _discoveryTimer.Stop();
+        try
+        {
+            _hostChatWindow?.Close();
+        }
+        catch { }
+        _hostChatWindow = null;
         _server.Dispose();
         CancelPendingApprovalConnection();
         NetworkChange.NetworkAddressChanged -= NetworkChange_NetworkAddressChanged;

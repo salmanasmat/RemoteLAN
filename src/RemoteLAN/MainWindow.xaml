@@ -177,91 +177,7 @@
             </Setter>
         </Style>
 
-        <!-- Custom ToggleButton for Modern ComboBox -->
-        <ControlTemplate x:Key="ModernComboBoxToggleButtonTemplate" TargetType="ToggleButton">
-            <Border x:Name="templateRoot" 
-                    Background="{TemplateBinding Background}" 
-                    BorderBrush="{TemplateBinding BorderBrush}" 
-                    BorderThickness="{TemplateBinding BorderThickness}" 
-                    CornerRadius="7" 
-                    SnapsToDevicePixels="True">
-                <Border x:Name="splitBorder" 
-                        Width="28" 
-                        HorizontalAlignment="Right" 
-                        SnapsToDevicePixels="True">
-                    <Path x:Name="arrow" 
-                          Data="M 0,0 L 4,4 L 8,0" 
-                          Stroke="#64748B" 
-                          StrokeThickness="1.5" 
-                          StrokeStartLineCap="Round" 
-                          StrokeEndLineCap="Round" 
-                          HorizontalAlignment="Center" 
-                          VerticalAlignment="Center" 
-                          SnapsToDevicePixels="True"/>
-                </Border>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="#94A3B8"/>
-                    <Setter TargetName="templateRoot" Property="Background" Value="#F8FAFC"/>
-                    <Setter TargetName="arrow" Property="Stroke" Value="#1E293B"/>
-                </Trigger>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="#2563EB"/>
-                    <Setter TargetName="templateRoot" Property="BorderThickness" Value="1.5"/>
-                    <Setter TargetName="arrow" Property="Stroke" Value="#2563EB"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter TargetName="templateRoot" Property="Opacity" Value="0.6"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
 
-        <!-- Modern ComboBoxItem Style -->
-        <Style x:Key="ModernComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="bd" 
-                                Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}" 
-                                CornerRadius="6" 
-                                Margin="4,2" 
-                                Padding="{TemplateBinding Padding}" 
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#F1F5F9"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#EFF6FF"/>
-                                <Setter TargetName="bd" Property="BorderThickness" Value="1"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#BFDBFE"/>
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsSelected" Value="True"/>
-                                    <Condition Property="IsMouseOver" Value="True"/>
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="bd" Property="Background" Value="#DBEAFE"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#93C5FD"/>
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
         <!-- Modern ComboBox Style -->
         <Style x:Key="ModernIpComboBoxStyle" TargetType="ComboBox">
@@ -520,7 +436,7 @@
                                 <TextBlock Text="RemoteLAN" FontSize="18" FontWeight="Bold" Foreground="#0F172A"
                                            TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"/>
                                 <Border Background="#E0F2FE" CornerRadius="4" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                                    <TextBlock Text="v1.3.4" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
+                                    <TextBlock Text="v1.4.0" FontSize="10" FontWeight="SemiBold" Foreground="#0284C7"/>
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="LAN Remote Desktop" FontSize="11" Foreground="#64748B" Margin="0,1,0,0"/>
@@ -656,6 +572,9 @@
 
                 <!-- Bottom Action & Settings -->
                 <StackPanel Grid.Row="4" Margin="0,14,0,0">
+                    <Button Content="📱  Connect Phone (QR)" Style="{StaticResource SecondaryButtonStyle}" Height="36" 
+                            HorizontalAlignment="Stretch" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"
+                            Click="ConnectPhone_Click" ToolTip="Scan QR code to control this PC from your phone or tablet browser"/>
                     <Button Content="⚙️  Settings" Style="{StaticResource SecondaryButtonStyle}" Height="36" 
                             HorizontalAlignment="Stretch" FontSize="12" FontWeight="SemiBold"
                             Click="OpenSettings_Click" ToolTip="Open Settings (Security, Preferences, and About)"/>

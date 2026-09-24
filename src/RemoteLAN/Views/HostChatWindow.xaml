@@ -60,6 +60,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Chat icon -->
@@ -76,7 +77,7 @@
 
                     <!-- Unread badge -->
                     <Border x:Name="UnreadBadge" Grid.Column="2" Background="#EF4444" CornerRadius="9"
-                            MinWidth="18" Height="18" Padding="4,0" Margin="0,0,8,0"
+                            MinWidth="18" Height="18" Padding="4,0" Margin="0,0,6,0"
                             VerticalAlignment="Center" Visibility="Collapsed">
                         <TextBlock x:Name="UnreadBadgeText" Text="0" FontSize="10" FontWeight="Bold"
                                    Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -84,11 +85,19 @@
 
                     <!-- Expand/Collapse toggle -->
                     <Button x:Name="ToggleBtn" Grid.Column="3" Content="▲"
-                            Width="28" Height="28" FontSize="11"
+                            Width="26" Height="26" FontSize="11"
+                            Background="Transparent" Foreground="#FFFFFF"
+                            BorderThickness="0" Cursor="Hand" Focusable="False"
+                            VerticalAlignment="Center" Margin="0,0,2,0"
+                            Click="ToggleBtn_Click" ToolTip="Expand / Collapse"/>
+
+                    <!-- Close button -->
+                    <Button x:Name="CloseBtn" Grid.Column="4" Content="✕"
+                            Width="26" Height="26" FontSize="12"
                             Background="Transparent" Foreground="#FFFFFF"
                             BorderThickness="0" Cursor="Hand" Focusable="False"
                             VerticalAlignment="Center"
-                            Click="ToggleBtn_Click"/>
+                            Click="CloseBtn_Click" ToolTip="Close Chat"/>
                 </Grid>
             </Border>
 

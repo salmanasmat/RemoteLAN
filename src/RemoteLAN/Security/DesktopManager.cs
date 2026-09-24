@@ -1118,7 +1118,7 @@ public static class DesktopManager
         SendKeyDirect(virtualKey, keyUp: true);
     }
 
-    private static void SendUnicodeCharDirect(char c, int holdMs = 20)
+    public static void SendUnicodeCharDirect(char c, int holdMs = 20)
     {
         var down = new NativeMethods.INPUT
         {
@@ -1215,13 +1215,26 @@ public static class DesktopManager
 
         // 2. Ensure thread is on the active input desktop
         using var scope = ImpersonateSystemScope();
-        EnsureThreadOnInputDesktop(out _);
+        EnsureThreadOnInputDesktop(out string desktopName);
 
-        // 3. Dismiss lock screen wallpaper & wake password prompt safely
-        SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
-        Thread.Sleep(50);
-        SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
-        Thread.Sleep(250);
+        if (string.Equals(desktopName, "Winlogon", StringComparison.OrdinalIgnoreCase))
+        {
+            // Dismiss lock screen wallpaper & wake password prompt safely on Winlogon
+            SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
+            Thread.Sleep(50);
+            SendKeyStrokeDirect(0x26 /* VK_UP */, 30);
+            Thread.Sleep(250);
+        }
+        else
+        {
+            // On normal desktop: Windows kernel intercepts software SendInput(Ctrl+Alt+Del) for security,
+            // so we send Ctrl+Shift+Esc to immediately launch Task Manager / Security view!
+            SendKeyDirect(0x11 /* VK_CONTROL */, keyUp: false);
+            SendKeyDirect(0x10 /* VK_SHIFT */, keyUp: false);
+            SendKeyStrokeDirect(0x1B /* VK_ESCAPE */, 30);
+            SendKeyDirect(0x10 /* VK_SHIFT */, keyUp: true);
+            SendKeyDirect(0x11 /* VK_CONTROL */, keyUp: true);
+        }
     }
 
     /// <summary>
